@@ -13,7 +13,6 @@ from collections.abc import Iterable
 
 import pandas as pd
 import pytest
-
 from climate_ref.database import Database
 from climate_ref.models import ExecutionGroup
 

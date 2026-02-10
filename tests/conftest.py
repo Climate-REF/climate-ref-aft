@@ -8,7 +8,6 @@ and set up the CLI helpers needed for end-to-end testing.
 from __future__ import annotations
 
 import pytest
-
 from climate_ref.config import DiagnosticProviderConfig
 
 

@@ -7,6 +7,13 @@ This project uses [Calendar Versioning](https://calver.org/) with the format `YY
 
 ## [2026.02] - Unreleased
 
+### Fixed
+
+- Add package stub so hatchling can build the project wheel
+- Add `helm dependency build` step in CI before linting
+- Fix trailing YAML document separators in Helm provider templates
+- Fix import sorting in test files
+
 ### Added
 
 - Initial AFT repository scaffolding
