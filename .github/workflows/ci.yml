@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Ruff check
+        run: uv run ruff check tests/ scripts/
+
+      - name: Ruff format
+        run: uv run ruff format --check tests/ scripts/
+
+  # Verify that all pinned components can be installed together
+  install-pinned:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    name: install (py${{ matrix.python-version }})
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install all components
+        run: uv sync --python ${{ matrix.python-version }} --all-extras
+
+      - name: Verify provider entry points
+        run: |
+          uv run python -c "
+          import importlib.metadata
+          eps = importlib.metadata.entry_points(group='climate-ref.providers')
+          names = {ep.name for ep in eps}
+          print(f'Discovered providers: {names}')
+          assert 'esmvaltool' in names, f'ESMValTool not found in {names}'
+          assert 'pmp' in names, f'PMP not found in {names}'
+          assert 'ilamb' in names, f'ILAMB not found in {names}'
+          print('All AFT providers discovered successfully')
+          "
+
+  # Verify Helm chart is valid
+  helm-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4.3.1
+
+      - name: Lint chart
+        run: helm lint helm/
+
+  # Integration test on self-hosted runner (requires conda environments)
+  integration:
+    if: github.repository == 'Climate-REF/climate-ref-aft'
+    runs-on: self-hosted
+    needs: [install-pinned]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Fetch test data
+        run: uv run ref datasets fetch-sample-data
+
+      - name: Run integration tests
+        run: uv run pytest tests/ -v --slow

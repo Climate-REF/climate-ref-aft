@@ -1,0 +1,80 @@
+# Docker Compose configuration for the Climate REF AFT stack.
+#
+# This brings up the full deployment with all diagnostic providers,
+# suitable for local testing and smoke tests.
+#
+# Usage:
+#   docker compose -f docker/docker-compose.yaml up -d
+#   bash scripts/smoke-test.sh
+
+name: climate-ref-aft
+services:
+  redis:
+    image: redis:7
+    restart: always
+    ports:
+      - "6379:6379"
+
+  postgres:
+    image: postgres:17
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: example
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  flower:
+    image: mher/flower:2.0.1
+    restart: always
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CELERY_ACCEPT_CONTENT=["json","pickle"]
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+
+  # Base worker to track the executions of async tasks
+  climate-ref:
+    image: ghcr.io/climate-ref/climate-ref:latest
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - REF_EXECUTOR=climate_ref_celery.executor.CeleryExecutor
+      - REF_DATABASE_URL=postgresql://postgres:example@postgres:5432/postgres
+    command: celery start-worker --loglevel INFO
+    volumes:
+      - ref:/ref
+
+  # Diagnostic workers - one per diagnostic package
+  climate-ref-esmvaltool:
+    extends:
+      service: climate-ref
+    command: celery start-worker --provider esmvaltool --loglevel INFO
+
+  climate-ref-pmp:
+    extends:
+      service: climate-ref
+    command: celery start-worker --provider pmp --loglevel INFO
+
+  climate-ref-ilamb:
+    extends:
+      service: climate-ref
+    command: celery start-worker --provider ilamb --loglevel INFO
+
+  climate-ref-example:
+    extends:
+      service: climate-ref
+    command: celery start-worker --provider example --loglevel INFO
+
+volumes:
+  ref:
+  postgres-data:

@@ -1,0 +1,26 @@
+# Climate REF AFT Version Manifest
+#
+# This file pins the exact versions of all Climate REF components
+# that make up a given AFT release. The CI workflows read this file
+# to install the correct combination for integration testing.
+#
+# Format: YYYY.MM (Calendar Versioning)
+# See: https://calver.org/
+
+[aft]
+version = "2026.02"
+
+[components]
+# Core framework (from Climate-REF/climate-ref monorepo)
+climate-ref-core = ">=0.9.0,<1.0.0"
+climate-ref = ">=0.9.0,<1.0.0"
+climate-ref-celery = ">=0.9.0,<1.0.0"
+
+# Diagnostic providers (standalone repos)
+climate-ref-esmvaltool = ">=0.9.0"
+climate-ref-pmp = ">=0.9.0"
+climate-ref-ilamb = ">=0.9.0"
+
+[helm]
+chart-version = "0.9.1"
+app-version = "0.9.1"

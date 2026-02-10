@@ -1,0 +1,72 @@
+# Nightly Compatibility Tests
+#
+# Tests the AFT deployment against the latest (unreleased) versions
+# of all components to detect compatibility issues early.
+
+name: Nightly Compatibility
+
+on:
+  schedule:
+    # Run daily at 03:00 UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-latest:
+    if: github.repository == 'Climate-REF/climate-ref-aft'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "pinned"
+            description: "Test with pinned (released) versions"
+          - name: "latest-core"
+            description: "Test with latest core from main branch"
+          - name: "latest-all"
+            description: "Test with latest everything from main branches"
+    name: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install pinned dependencies
+        run: uv sync --all-extras
+
+      - name: Upgrade to latest core (dev)
+        if: matrix.name == 'latest-core' || matrix.name == 'latest-all'
+        run: |
+          uv pip install \
+            "climate-ref-core @ git+https://github.com/Climate-REF/climate-ref.git@main#subdirectory=packages/climate-ref-core" \
+            "climate-ref @ git+https://github.com/Climate-REF/climate-ref.git@main#subdirectory=packages/climate-ref"
+
+      - name: Upgrade to latest providers (dev)
+        if: matrix.name == 'latest-all'
+        run: |
+          # Install latest providers from their respective main branches
+          # These URLs will be updated once provider repos are created
+          uv pip install \
+            "climate-ref-esmvaltool @ git+https://github.com/Climate-REF/climate-ref.git@main#subdirectory=packages/climate-ref-esmvaltool" \
+            "climate-ref-pmp @ git+https://github.com/Climate-REF/climate-ref.git@main#subdirectory=packages/climate-ref-pmp"
+          # ILAMB - from standalone repo once available:
+          # uv pip install "climate-ref-ilamb @ git+https://github.com/Climate-REF/climate-ref-ilamb.git@main"
+
+      - name: Verify provider entry points
+        run: |
+          uv run python -c "
+          import importlib.metadata
+          eps = importlib.metadata.entry_points(group='climate-ref.providers')
+          names = {ep.name for ep in eps}
+          print(f'Discovered providers: {names}')
+          for expected in ['esmvaltool', 'pmp', 'ilamb']:
+              status = 'OK' if expected in names else 'MISSING'
+              print(f'  {expected}: {status}')
+          "
+
+      - name: Run provider discovery test
+        run: uv run pytest tests/integration/test_cmip7_aft.py::test_provider_discovery -v

@@ -1,0 +1,16 @@
+[tool.bumpversion]
+current_version = "2026.02"
+parse = "(?P<major>\\d{4})\\.(?P<minor>\\d{2})"
+serialize = ["{major}.{minor}"]
+commit = true
+tag = true
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "versions.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'

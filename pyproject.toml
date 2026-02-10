@@ -1,0 +1,66 @@
+[project]
+name = "climate-ref-aft"
+version = "2026.02"
+description = "CMIP7 Assessment Fast Track - deployment configuration and integration tests for Climate REF"
+readme = "README.md"
+authors = [
+    { name = "Jared Lewis", email = "jared.lewis@climate-resource.com" },
+]
+license = "Apache-2.0"
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+    "License :: OSI Approved :: Apache Software License",
+    "Private :: Do Not Upload",
+]
+
+# Pinned versions of all Climate REF components
+# Update these when preparing a new AFT release
+dependencies = [
+    "climate-ref>=0.9.0,<1.0.0",
+    "climate-ref-core>=0.9.0,<1.0.0",
+    "climate-ref-celery>=0.9.0,<1.0.0",
+    # Diagnostic providers (installed from PyPI after repo split)
+    "climate-ref-esmvaltool>=0.9.0",
+    "climate-ref-pmp>=0.9.0",
+    "climate-ref-ilamb>=0.9.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=9.0.0",
+    "pytest-mock>=3.12",
+    "pandas>=2.0",
+    "climate-ref[test]",
+]
+
+[dependency-groups]
+dev = [
+    "climate-ref-aft[test]",
+    "ruff>=0.14.0",
+    "pre-commit>=3.3.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "S"]
+ignore = ["S101"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "nightly: marks tests that run against latest (unreleased) versions",
+]
