@@ -67,6 +67,9 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v4.3.1
 
+      - name: Build chart dependencies
+        run: helm dependency build helm/
+
       - name: Lint chart
         run: helm lint helm/
 
@@ -85,7 +88,13 @@ jobs:
         run: uv sync --all-extras
 
       - name: Fetch test data
-        run: uv run ref datasets fetch-sample-data
+        run: |
+          mkdir -p "$REF_TEST_DATA_DIR"
+          uv run ref datasets fetch-sample-data
+        env:
+          REF_TEST_DATA_DIR: ${{ runner.temp }}/test-data
 
       - name: Run integration tests
         run: uv run pytest tests/ -v --slow
+        env:
+          REF_TEST_DATA_DIR: ${{ runner.temp }}/test-data
