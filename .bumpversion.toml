@@ -4,6 +4,7 @@ parse = "(?P<major>\\d{4})\\.(?P<minor>\\d{2})"
 serialize = ["{major}.{minor}"]
 commit = true
 tag = true
+pre_commit_hooks = ["uv run towncrier build --yes"]
 
 [[tool.bumpversion.files]]
 filename = "pyproject.toml"
