@@ -87,6 +87,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
 
+      - name: Set up providers
+        run: uv run ref providers setup
+
       - name: Fetch test data
         run: |
           mkdir -p "$REF_TEST_DATA_DIR"

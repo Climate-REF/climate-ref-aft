@@ -1,12 +1,17 @@
 # Climate REF Helm Chart
 
 A Helm chart for deploying the Climate REF (Rapid Evaluation Framework) on Kubernetes.
-This chart deploys a distributed task execution system using Celery workers for running climate diagnostics.
+This chart deploys the full stack:
+
+- the ref-app API/website
+- celery monitoring UI
+- distributed Celery workers for running climate diagnostics.
 
 ## Overview
 
 The chart deploys:
 
+- **ref-app (API)**: FastAPI application serving the REST API and static React frontend
 - **Dragonfly** (Redis-compatible): Message broker and result backend for Celery
 - **Flower**: Web UI for monitoring Celery tasks
 - **Provider Workers**: Celery workers for each diagnostic provider (orchestrator, esmvaltool, pmp, ilamb, example)
@@ -16,6 +21,7 @@ The chart deploys:
 - Kubernetes 1.19+
 - Helm 3.0+
 - Access to container images:
+  - `ghcr.io/climate-ref/ref-app`
   - `ghcr.io/climate-ref/climate-ref`
   - `mher/flower`
 
@@ -57,9 +63,12 @@ helm dependency update
 
 ```mermaid
 flowchart TB
-    ingress[Ingress<br/><i>optional</i>]
+    apiIngress[API Ingress<br/><i>optional</i>]
+    flowerIngress[Flower Ingress<br/><i>optional</i>]
+    api[ref-app<br/><i>API + frontend</i>]
     flower[Flower<br/><i>monitoring</i>]
     dragonfly[Dragonfly<br/><i>Redis broker</i>]
+    db[(PostgreSQL<br/><i>external</i>)]
 
     subgraph workers[Provider Workers]
         orchestrator[Orchestrator<br/>Worker]
@@ -70,7 +79,9 @@ flowchart TB
 
     pvcs[(PVCs<br/><i>shared data storage</i>)]
 
-    ingress --> flower
+    apiIngress --> api
+    flowerIngress --> flower
+    api --> db
     flower --> dragonfly
     dragonfly --> orchestrator
     dragonfly --> esmvaltool
@@ -104,15 +115,55 @@ Each provider worker listens to a specific Celery queue:
 | `nameOverride`     | Override chart name        | `""`    |
 | `fullnameOverride` | Override full release name | `""`    |
 
-### Ingress Configuration
+### API Configuration
 
-| Parameter             | Description         | Default |
-| --------------------- | ------------------- | ------- |
-| `ingress.enabled`     | Enable ingress      | `false` |
-| `ingress.host`        | Ingress hostname    | `""`    |
-| `ingress.className`   | Ingress class name  | `""`    |
-| `ingress.annotations` | Ingress annotations | `{}`    |
-| `ingress.labels`      | Ingress labels      | `{}`    |
+The `api` section configures the ref-app (FastAPI + React frontend).
+
+| Parameter                         | Description                 | Default                           |
+| --------------------------------- | --------------------------- | --------------------------------- |
+| `api.enabled`                     | Enable the API deployment   | `true`                            |
+| `api.replicaCount`                | Number of API replicas      | `1`                               |
+| `api.image.repository`            | API image repository        | `ghcr.io/climate-ref/ref-app`     |
+| `api.image.tag`                   | API image tag               | `latest`                          |
+| `api.image.pullPolicy`            | Image pull policy           | `IfNotPresent`                    |
+| `api.service.type`                | Service type                | `ClusterIP`                       |
+| `api.service.port`                | Service port                | `80`                              |
+| `api.resources`                   | Resource requests/limits    | `{}`                              |
+| `api.nodeSelector`                | Node selector               | `{}`                              |
+| `api.tolerations`                 | Tolerations                 | `[]`                              |
+| `api.affinity`                    | Affinity rules              | `{}`                              |
+
+#### API Environment Variables
+
+Set via `api.env`:
+
+| Variable            | Description                    | Default                           |
+| ------------------- | ------------------------------ | --------------------------------- |
+| `ENVIRONMENT`       | Runtime environment            | `production`                      |
+| `LOG_LEVEL`         | Logging level                  | `INFO`                            |
+| `SECRET_KEY`        | Application secret key         | `changethis` (override in prod!)  |
+| `REF_DATABASE_URL`  | Database connection string     | `""` (required)                   |
+| `REF_CONFIGURATION` | Path to REF configuration      | `/app/.ref`                       |
+
+#### API Ingress
+
+| Parameter                  | Description         | Default |
+| -------------------------- | ------------------- | ------- |
+| `api.ingress.enabled`      | Enable API ingress  | `false` |
+| `api.ingress.host`         | Ingress hostname    | `""`    |
+| `api.ingress.className`    | Ingress class name  | `""`    |
+| `api.ingress.annotations`  | Ingress annotations | `{}`    |
+| `api.ingress.labels`       | Ingress labels      | `{}`    |
+
+#### API HTTPRoute (Gateway API)
+
+| Parameter                    | Description                  | Default |
+| ---------------------------- | ---------------------------- | ------- |
+| `api.httpRoute.enabled`      | Enable API HTTPRoute         | `false` |
+| `api.httpRoute.hostnames`    | List of hostnames to match   | `[]`    |
+| `api.httpRoute.parentRefs`   | Gateway parent references    | `[]`    |
+| `api.httpRoute.annotations`  | HTTPRoute annotations        | `{}`    |
+| `api.httpRoute.labels`       | HTTPRoute labels             | `{}`    |
 
 ### Dragonfly (Redis) Configuration
 
@@ -138,6 +189,26 @@ See [Dragonfly Helm chart](https://github.com/dragonflydb/dragonfly/tree/main/co
 | `flower.nodeSelector`           | Node selector                    | `{}`           |
 | `flower.tolerations`            | Tolerations                      | `[]`           |
 | `flower.affinity`               | Affinity rules                   | `{}`           |
+
+#### Flower Ingress
+
+| Parameter                     | Description             | Default |
+| ----------------------------- | ----------------------- | ------- |
+| `flower.ingress.enabled`      | Enable Flower ingress   | `false` |
+| `flower.ingress.host`         | Ingress hostname        | `""`    |
+| `flower.ingress.className`    | Ingress class name      | `""`    |
+| `flower.ingress.annotations`  | Ingress annotations     | `{}`    |
+| `flower.ingress.labels`       | Ingress labels          | `{}`    |
+
+#### Flower HTTPRoute (Gateway API)
+
+| Parameter                       | Description                  | Default |
+| ------------------------------- | ---------------------------- | ------- |
+| `flower.httpRoute.enabled`      | Enable Flower HTTPRoute      | `false` |
+| `flower.httpRoute.hostnames`    | List of hostnames to match   | `[]`    |
+| `flower.httpRoute.parentRefs`   | Gateway parent references    | `[]`    |
+| `flower.httpRoute.annotations`  | HTTPRoute annotations        | `{}`    |
+| `flower.httpRoute.labels`       | HTTPRoute labels             | `{}`    |
 
 ### Provider Defaults
 
@@ -279,17 +350,32 @@ kubectl port-forward svc/ref-flower 5555:5555
 
 Open <http://localhost:5555> in your browser.
 
+### Accessing the API
+
+Access the ref-app API:
+
+```bash
+kubectl port-forward svc/ref-api 8000:80
+```
+
+Open <http://localhost:8000> in your browser, or check the health endpoint:
+
+```bash
+curl http://localhost:8000/api/v1/utils/health-check/
+```
+
 ## Resources Created
 
 The chart creates the following Kubernetes resources:
 
-| Resource                | Count           | Description                      |
-| ----------------------- | --------------- | -------------------------------- |
-| Deployment              | 1 + N providers | Flower + one per provider        |
-| Service                 | 2               | Flower + Dragonfly               |
-| ServiceAccount          | 1 + N providers | Flower + one per provider        |
-| Secret                  | 1 + N providers | Environment config per component |
-| ServiceMonitor          | 0-1             | Optional Prometheus integration  |
-| HorizontalPodAutoscaler | 0-N             | Optional per-provider            |
-| PersistentVolumeClaim   | N               | As configured in createPVCs      |
-| Ingress                 | 0-1             | Optional                         |
+| Resource                | Count           | Description                        |
+| ----------------------- | --------------- | ---------------------------------- |
+| Deployment              | 2 + N providers | API + Flower + one per provider    |
+| Service                 | 3               | API + Flower + Dragonfly           |
+| ServiceAccount          | 2 + N providers | API + Flower + one per provider    |
+| Secret                  | 2 + N providers | Environment config per component   |
+| ServiceMonitor          | 0-1             | Optional Prometheus integration    |
+| HorizontalPodAutoscaler | 0-N             | Optional per-provider              |
+| PersistentVolumeClaim   | N               | As configured in createPVCs        |
+| Ingress                 | 0-2             | Optional API and/or Flower ingress |
+| HTTPRoute               | 0-2             | Optional Gateway API routes        |
