@@ -26,6 +26,20 @@ services:
     ports:
       - "5432:5432"
 
+  ref-app:
+    image: ghcr.io/climate-ref/ref-app:latest
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - REF_DATABASE_URL=postgresql://postgres:example@postgres:5432/postgres
+      - ENVIRONMENT=local
+      - SECRET_KEY=local-dev-secret
+      - REF_CONFIGURATION=/app/.ref
+    ports:
+      - "8000:8000"
+
   flower:
     image: mher/flower:2.0.1
     restart: always

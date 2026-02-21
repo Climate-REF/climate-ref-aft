@@ -23,9 +23,11 @@ The AFT deployment brings together independently versioned packages:
 | `climate-ref-core` | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | Core library with base classes and interfaces |
 | `climate-ref` | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | Main application, CLI, database, solver |
 | `climate-ref-celery` | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | Celery executor for distributed execution |
-| `climate-ref-esmvaltool` | [Climate-REF/climate-ref-esmvaltool](https://github.com/Climate-REF/climate-ref-esmvaltool) | ESMValTool diagnostic provider |
-| `climate-ref-pmp` | [Climate-REF/climate-ref-pmp](https://github.com/Climate-REF/climate-ref-pmp) | PCMDI Metrics Package diagnostic provider |
-| `climate-ref-ilamb` | [Climate-REF/climate-ref-ilamb](https://github.com/Climate-REF/climate-ref-ilamb) | ILAMB diagnostic provider |
+| `climate-ref-esmvaltool` | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | ESMValTool diagnostic provider |
+| `climate-ref-pmp` | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | PCMDI Metrics Package diagnostic provider |
+| `climate-ref-ilamb` | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | ILAMB diagnostic provider |
+
+Note: we intend to split the providers out into their own repositories in the coming weeks.
 
 ## Versioning
 

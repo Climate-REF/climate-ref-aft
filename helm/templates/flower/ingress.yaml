@@ -1,27 +1,28 @@
-{{- if .Values.ingress.enabled -}}
+{{- if .Values.flower.ingress.enabled -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "ref.fullname" . }}
+  name: {{ include "ref.fullname" . }}-flower
   labels:
+    app.kubernetes.io/component: flower
     {{- include "ref.labels" . | nindent 4 }}
-    {{- with .Values.ingress.labels }}
+    {{- with .Values.flower.ingress.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-  {{- with .Values.ingress.annotations }}
+  {{- with .Values.flower.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  {{- with .Values.ingress.className }}
+  {{- with .Values.flower.ingress.className }}
   ingressClassName: {{ . }}
   {{- end }}
   tls:
   - hosts:
-    - {{ .Values.ingress.host | quote }}
-    secretName: {{ include "ref.fullname" . }}-ingress-cert
+    - {{ .Values.flower.ingress.host | quote }}
+    secretName: {{ include "ref.fullname" . }}-flower-ingress-cert
   rules:
-  - host: {{ .Values.ingress.host | quote }}
+  - host: {{ .Values.flower.ingress.host | quote }}
     http:
       paths:
       - path: /
