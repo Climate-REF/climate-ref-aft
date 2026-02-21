@@ -7,9 +7,9 @@ api:
   replicaCount: 1
 
   image:
-    repository: ghcr.io/climate-ref/ref-app
+    repository: ghcr.io/climate-ref/climate-ref-frontend
     pullPolicy: IfNotPresent
-    tag: latest
+    tag: main
 
   env:
     ENVIRONMENT: production

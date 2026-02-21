@@ -27,7 +27,8 @@ services:
       - "5432:5432"
 
   ref-app:
-    image: ghcr.io/climate-ref/ref-app:latest
+    image: ghcr.io/climate-ref/climate-ref-frontend:main
+    platform: linux/amd64
     restart: always
     depends_on:
       - postgres
@@ -54,7 +55,8 @@ services:
 
   # Base worker to track the executions of async tasks
   climate-ref:
-    image: ghcr.io/climate-ref/climate-ref:latest
+    image: ghcr.io/climate-ref/climate-ref:main
+    platform: linux/amd64
     restart: always
     depends_on:
       - postgres
