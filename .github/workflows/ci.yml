@@ -58,21 +58,6 @@ jobs:
           print('All AFT providers discovered successfully')
           "
 
-  # Verify Helm chart is valid
-  helm-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v4.3.1
-
-      - name: Build chart dependencies
-        run: helm dependency build helm/
-
-      - name: Lint chart
-        run: helm lint helm/
-
   # Integration test on self-hosted runner (requires conda environments)
   integration:
     if: github.repository == 'Climate-REF/climate-ref-aft'

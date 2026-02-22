@@ -1,0 +1,220 @@
+name: Packaging
+
+on:
+  pull_request:
+  workflow_dispatch:
+  push:
+    branches:
+      - "main"
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      helm: ${{ steps.filter.outputs.helm }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            helm:
+              - 'helm/**'
+
+  helm:
+    name: Helm Chart
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.helm == 'true' || github.event_name != 'pull_request'
+    permissions:
+      packages: write
+    outputs:
+      generated-semver: ${{ steps.semantic-version.outputs.generated-semver }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+    - name: Install yq
+      run: pip install yq
+    - name: Generate SemVer
+      id: semantic-version
+      run: |
+        CHART_VERSION=$(yq -r '.version' helm/Chart.yaml)
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          LOCAL_SEGMENT=+pr-${{ github.event.pull_request.number }}
+        elif [ "${{ github.ref_type }}" = "tag" ]; then
+          LOCAL_SEGMENT=""
+        else
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          LOCAL_SEGMENT=+${SHORT_SHA}
+        fi
+        GENERATED_VERSION=${CHART_VERSION}${LOCAL_SEGMENT}
+        yq -Y -i ".version = \"$GENERATED_VERSION\"" helm/Chart.yaml
+        echo "generated-semver=$GENERATED_VERSION" >> $GITHUB_OUTPUT
+    - name: Lint chart
+      run: |
+        helm dependency build helm/
+        helm lint helm/
+    - name: Chart | Push
+      uses: appany/helm-oci-chart-releaser@v0.5.0
+      with:
+        name: ref-aft
+        repository: climate-ref/charts
+        tag: ${{ steps.semantic-version.outputs.generated-semver }}
+        path: helm
+        registry: ghcr.io
+        registry_username: ${{ github.actor }}
+        registry_password: ${{ secrets.GITHUB_TOKEN }}
+        update_dependencies: 'true'
+
+  test:
+    name: Test Helm Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'pull_request' && needs.changes.outputs.helm == 'true'
+    needs: [changes, helm]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Cache Sample Data (Restore)
+      id: cache-sample-data-restore
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ github.workspace }}/cache/ref-config
+        key: ${{ runner.os }}-sample-data
+        enableCrossOsArchive: true
+    - name: Set permissions for cached data
+      run: |
+        sudo install -d --owner=1000 --group=1000 ${GITHUB_WORKSPACE}/cache/ref-config
+    - name: Start minikube
+      uses: medyagh/setup-minikube@latest
+      with:
+        mount-path: '${{ github.workspace }}/cache/ref-config:/cache/ref-config'
+    - name: Set up Helm
+      uses: azure/setup-helm@v4.3.1
+    - name: Install Chart
+      run: |
+        helm install test oci://ghcr.io/climate-ref/charts/ref-aft \
+          --version=${{ needs.helm.outputs.generated-semver }} \
+          -f helm/ci/gh-actions-values.yaml
+
+        sleep 60
+        kubectl get pods
+        echo ""
+        kubectl describe pod -l app.kubernetes.io/component=pmp
+        echo ""
+        kubectl logs -l app.kubernetes.io/component=pmp
+    - name: Run Migrations
+      run: |
+        kubectl exec deployment/test-ref-orchestrator -- ref config list
+    - name: Initialize Providers
+      run: |
+        kubectl exec deployment/test-ref-orchestrator -- ref providers setup --skip-data --skip-validate
+        kubectl exec deployment/test-ref-orchestrator -- ref providers setup --provider pmp
+        kubectl exec deployment/test-ref-orchestrator -- ref providers setup --provider ilamb
+    - name: Verify Workers Online
+      run: |
+        kubectl port-forward svc/test-ref-flower 5555:5555 &
+        PF_PID=$!
+
+        echo "=== Flower /healthcheck ==="
+        HEALTHY=0
+        for i in $(seq 1 30); do
+          if curl -sf http://localhost:5555/healthcheck; then
+            HEALTHY=1
+            break
+          fi
+          echo "Waiting for port-forward... ($i/30)"
+          sleep 2
+        done
+        if [ "$HEALTHY" -eq 0 ]; then
+          echo "Flower healthcheck failed after 30 attempts"
+          kill $PF_PID || true
+          exit 1
+        fi
+        echo ""
+
+        echo "=== Checking broker queues ==="
+        FAILED=1
+        for attempt in $(seq 1 15); do
+          BROKER=$(curl -sf http://localhost:5555/broker)
+
+          MISSING=0
+          for queue in celery esmvaltool pmp ilamb example; do
+            if ! echo "$BROKER" | grep -q "id=\"${queue}\""; then
+              MISSING=1
+              break
+            fi
+          done
+
+          if [ "$MISSING" -eq 0 ]; then
+            echo "All expected queues found"
+            for queue in celery esmvaltool pmp ilamb example; do
+              echo "OK: ${queue} queue present"
+            done
+            FAILED=0
+            break
+          fi
+          echo "Waiting for broker queues... ($attempt/15)"
+          sleep 4
+        done
+
+        kill $PF_PID || true
+        if [ "$FAILED" -eq 1 ]; then
+          echo "Not all expected queues are registered with the broker after 60s"
+          echo "Broker response:"
+          echo "$BROKER"
+          exit 1
+        fi
+    - name: Fetch Test Data
+      run: |
+        kubectl exec deployment/test-ref-orchestrator -- ref datasets fetch-data --registry sample-data --output-directory /ref/sample-data
+
+    - name: Cache Sample Data (Save)
+      uses: actions/cache/save@v5
+      with:
+        path: ${{ github.workspace }}/cache/ref-config
+        key: ${{ runner.os }}-sample-data
+
+    - name: Ingest Test Data (CMIP6)
+      run: |
+        kubectl exec deployment/test-ref-orchestrator -- ref -v datasets ingest --source-type cmip6 /ref/sample-data/CMIP6
+    - name: Ingest Test Data (obs4mips)
+      run: |
+        kubectl exec deployment/test-ref-orchestrator -- ref -v datasets ingest --source-type obs4mips /ref/sample-data/obs4REF
+    - name: Simple Solve
+      run: |
+        kubectl exec deployment/test-ref-orchestrator -- ref -v solve --timeout 720 --one-per-provider \
+          --diagnostic global-mean-timeseries \
+          --diagnostic annual-cycle \
+          --diagnostic gpp-wecann
+    - name: Capture Worker Logs on Failure
+      if: failure()
+      run: |
+        echo "=== PMP Worker Logs ==="
+        kubectl logs -l app.kubernetes.io/component=pmp --tail=500 || true
+        echo ""
+        echo "=== ESMValTool Worker Logs ==="
+        kubectl logs -l app.kubernetes.io/component=esmvaltool --tail=500 || true
+        echo ""
+        echo "=== ILAMB Worker Logs ==="
+        kubectl logs -l app.kubernetes.io/component=ilamb --tail=500 || true
+        echo ""
+        echo "=== Example Worker Logs ==="
+        kubectl logs -l app.kubernetes.io/component=example --tail=500 || true
+        echo ""
+        echo "=== Orchestrator Worker Logs ==="
+        kubectl logs -l app.kubernetes.io/component=orchestrator --tail=500 || true
+        echo ""
+        echo "=== Flower Logs ==="
+        kubectl logs -l app.kubernetes.io/component=flower --tail=200 || true
+        echo ""
+        echo "=== Dragonfly Logs ==="
+        kubectl logs -l app.kubernetes.io/name=dragonfly --tail=200 || true
