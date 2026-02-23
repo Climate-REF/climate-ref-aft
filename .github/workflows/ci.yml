@@ -76,7 +76,7 @@ jobs:
   # Integration test on self-hosted runner (requires conda environments)
   integration:
     if: github.repository == 'Climate-REF/climate-ref-aft'
-    runs-on: arc
+    runs-on: self-hosted
     needs: [install-pinned]
     steps:
       - uses: actions/checkout@v4
