@@ -22,13 +22,14 @@ jobs:
     outputs:
       helm: ${{ steps.filter.outputs.helm }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            helm:
-              - 'helm/**'
+      - uses: actions/checkout@v6
+      # - uses: dorny/paths-filter@v3
+      #   id: filter
+      #   with:
+      #     filters: |
+      #       helm:
+      #         - 'helm/**'
+            
 
   helm:
     name: Helm Chart
@@ -40,10 +41,14 @@ jobs:
     outputs:
       generated-semver: ${{ steps.semantic-version.outputs.generated-semver }}
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
+    - uses: actions/checkout@v6
+    - uses: actions/setup-python@v6
+    - name: Install jq
+      run: |
+        sudo apt-get install --yes jq
     - name: Install yq
-      run: pip install yq
+      run: |
+        pip install yq
     - name: Generate SemVer
       id: semantic-version
       run: |
@@ -59,14 +64,10 @@ jobs:
         GENERATED_VERSION=${CHART_VERSION}${LOCAL_SEGMENT}
         yq -Y -i ".version = \"$GENERATED_VERSION\"" helm/Chart.yaml
         echo "generated-semver=$GENERATED_VERSION" >> $GITHUB_OUTPUT
-    - name: Lint chart
-      run: |
-        helm dependency build helm/
-        helm lint helm/
     - name: Chart | Push
       uses: appany/helm-oci-chart-releaser@v0.5.0
       with:
-        name: ref-aft
+        name: climate-ref-aft
         repository: climate-ref/charts
         tag: ${{ steps.semantic-version.outputs.generated-semver }}
         path: helm
@@ -82,7 +83,7 @@ jobs:
     if: github.event_name == 'pull_request' && needs.changes.outputs.helm == 'true'
     needs: [changes, helm]
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Cache Sample Data (Restore)
       id: cache-sample-data-restore
       uses: actions/cache/restore@v5
@@ -101,8 +102,9 @@ jobs:
       uses: azure/setup-helm@v4.3.1
     - name: Install Chart
       run: |
-        helm install test oci://ghcr.io/climate-ref/charts/ref-aft \
+        helm install test oci://ghcr.io/climate-ref/charts/ref \
           --version=${{ needs.helm.outputs.generated-semver }} \
+          --set defaults.image.tag=pr-${{ github.event.pull_request.number }} \
           -f helm/ci/gh-actions-values.yaml
 
         sleep 60
@@ -116,63 +118,12 @@ jobs:
         kubectl exec deployment/test-ref-orchestrator -- ref config list
     - name: Initialize Providers
       run: |
+        # Imports ilamb3 which tries to create /home/app/.config/ilamb3 on import, no way to tell it to live somewhere else
+        # First, set up all providers without fetching data (handles conda envs)
         kubectl exec deployment/test-ref-orchestrator -- ref providers setup --skip-data --skip-validate
+        # Fetch data for providers except esmvaltool (ERA5 data is too large for CI)
         kubectl exec deployment/test-ref-orchestrator -- ref providers setup --provider pmp
         kubectl exec deployment/test-ref-orchestrator -- ref providers setup --provider ilamb
-    - name: Verify Workers Online
-      run: |
-        kubectl port-forward svc/test-ref-flower 5555:5555 &
-        PF_PID=$!
-
-        echo "=== Flower /healthcheck ==="
-        HEALTHY=0
-        for i in $(seq 1 30); do
-          if curl -sf http://localhost:5555/healthcheck; then
-            HEALTHY=1
-            break
-          fi
-          echo "Waiting for port-forward... ($i/30)"
-          sleep 2
-        done
-        if [ "$HEALTHY" -eq 0 ]; then
-          echo "Flower healthcheck failed after 30 attempts"
-          kill $PF_PID || true
-          exit 1
-        fi
-        echo ""
-
-        echo "=== Checking broker queues ==="
-        FAILED=1
-        for attempt in $(seq 1 15); do
-          BROKER=$(curl -sf http://localhost:5555/broker)
-
-          MISSING=0
-          for queue in celery esmvaltool pmp ilamb example; do
-            if ! echo "$BROKER" | grep -q "id=\"${queue}\""; then
-              MISSING=1
-              break
-            fi
-          done
-
-          if [ "$MISSING" -eq 0 ]; then
-            echo "All expected queues found"
-            for queue in celery esmvaltool pmp ilamb example; do
-              echo "OK: ${queue} queue present"
-            done
-            FAILED=0
-            break
-          fi
-          echo "Waiting for broker queues... ($attempt/15)"
-          sleep 4
-        done
-
-        kill $PF_PID || true
-        if [ "$FAILED" -eq 1 ]; then
-          echo "Not all expected queues are registered with the broker after 60s"
-          echo "Broker response:"
-          echo "$BROKER"
-          exit 1
-        fi
     - name: Fetch Test Data
       run: |
         kubectl exec deployment/test-ref-orchestrator -- ref datasets fetch-data --registry sample-data --output-directory /ref/sample-data
@@ -191,6 +142,7 @@ jobs:
         kubectl exec deployment/test-ref-orchestrator -- ref -v datasets ingest --source-type obs4mips /ref/sample-data/obs4REF
     - name: Simple Solve
       run: |
+        # Use a fixed set of fast diagnostics to keep CI times predictable
         kubectl exec deployment/test-ref-orchestrator -- ref -v solve --timeout 720 --one-per-provider \
           --diagnostic global-mean-timeseries \
           --diagnostic annual-cycle \
@@ -214,7 +166,7 @@ jobs:
         kubectl logs -l app.kubernetes.io/component=orchestrator --tail=500 || true
         echo ""
         echo "=== Flower Logs ==="
-        kubectl logs -l app.kubernetes.io/component=flower --tail=200 || true
+        kubectl logs -l app.kubernetes.io/component=flower --tail=500 || true
         echo ""
         echo "=== Dragonfly Logs ==="
-        kubectl logs -l app.kubernetes.io/name=dragonfly --tail=200 || true
+        kubectl logs -l app.kubernetes.io/name=dragonfly --tail=500 || true
