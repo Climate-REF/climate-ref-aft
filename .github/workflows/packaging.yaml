@@ -102,7 +102,7 @@ jobs:
       uses: azure/setup-helm@v4.3.1
     - name: Install Chart
       run: |
-        helm install test oci://ghcr.io/climate-ref/charts/ref \
+        helm install test oci://ghcr.io/climate-ref/charts/climate-ref-aft \
           --version=${{ needs.helm.outputs.generated-semver }} \
           --set defaults.image.tag=pr-${{ github.event.pull_request.number }} \
           -f helm/ci/gh-actions-values.yaml
@@ -115,18 +115,18 @@ jobs:
         kubectl logs -l app.kubernetes.io/component=pmp
     - name: Run Migrations
       run: |
-        kubectl exec deployment/test-ref-orchestrator -- ref config list
+        kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref config list
     - name: Initialize Providers
       run: |
         # Imports ilamb3 which tries to create /home/app/.config/ilamb3 on import, no way to tell it to live somewhere else
         # First, set up all providers without fetching data (handles conda envs)
-        kubectl exec deployment/test-ref-orchestrator -- ref providers setup --skip-data --skip-validate
+        kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref providers setup --skip-data --skip-validate
         # Fetch data for providers except esmvaltool (ERA5 data is too large for CI)
-        kubectl exec deployment/test-ref-orchestrator -- ref providers setup --provider pmp
-        kubectl exec deployment/test-ref-orchestrator -- ref providers setup --provider ilamb
+        kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref providers setup --provider pmp
+        kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref providers setup --provider ilamb
     - name: Fetch Test Data
       run: |
-        kubectl exec deployment/test-ref-orchestrator -- ref datasets fetch-data --registry sample-data --output-directory /ref/sample-data
+        kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref datasets fetch-data --registry sample-data --output-directory /ref/sample-data
 
     - name: Cache Sample Data (Save)
       uses: actions/cache/save@v5
@@ -136,14 +136,14 @@ jobs:
 
     - name: Ingest Test Data (CMIP6)
       run: |
-        kubectl exec deployment/test-ref-orchestrator -- ref -v datasets ingest --source-type cmip6 /ref/sample-data/CMIP6
+        kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref -v datasets ingest --source-type cmip6 /ref/sample-data/CMIP6
     - name: Ingest Test Data (obs4mips)
       run: |
-        kubectl exec deployment/test-ref-orchestrator -- ref -v datasets ingest --source-type obs4mips /ref/sample-data/obs4REF
+        kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref -v datasets ingest --source-type obs4mips /ref/sample-data/obs4REF
     - name: Simple Solve
       run: |
         # Use a fixed set of fast diagnostics to keep CI times predictable
-        kubectl exec deployment/test-ref-orchestrator -- ref -v solve --timeout 720 --one-per-provider \
+        kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref -v solve --timeout 720 --one-per-provider \
           --diagnostic global-mean-timeseries \
           --diagnostic annual-cycle \
           --diagnostic gpp-wecann

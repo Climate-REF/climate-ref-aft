@@ -34,7 +34,7 @@ jobs:
       - name: Push chart
         run: |
           CHART_VERSION=$(grep '^version:' helm/Chart.yaml | awk '{print $2}')
-          helm push ref-${CHART_VERSION}.tgz oci://ghcr.io/climate-ref/charts
+          helm push climate-ref-aft-${CHART_VERSION}.tgz oci://ghcr.io/climate-ref/charts
 
   release:
     name: GitHub Release
