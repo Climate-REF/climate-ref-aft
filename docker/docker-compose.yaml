@@ -26,6 +26,21 @@ services:
     ports:
       - "5432:5432"
 
+  ref-app:
+    image: ghcr.io/climate-ref/climate-ref-frontend:main
+    platform: linux/amd64
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - REF_DATABASE_URL=postgresql://postgres:example@postgres:5432/postgres
+      - ENVIRONMENT=local
+      - SECRET_KEY=local-dev-secret
+      - REF_CONFIGURATION=/app/.ref
+    ports:
+      - "8000:8000"
+
   flower:
     image: mher/flower:2.0.1
     restart: always
@@ -40,7 +55,8 @@ services:
 
   # Base worker to track the executions of async tasks
   climate-ref:
-    image: ghcr.io/climate-ref/climate-ref:latest
+    image: ghcr.io/climate-ref/climate-ref:main
+    platform: linux/amd64
     restart: always
     depends_on:
       - postgres

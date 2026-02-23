@@ -4,7 +4,7 @@ defaults:
   image:
     repository: ghcr.io/climate-ref/climate-ref
     pullPolicy: IfNotPresent
-    tag: pr-492  # Using current PR tag
+    tag: latest
 
   podSecurityContext:
     runAsUser: 1000
@@ -52,3 +52,19 @@ providers:
   pmp: {}
   ilamb: {}
   example: {}
+
+api:
+  image:
+    tag: latest
+  env:
+    ENVIRONMENT: local
+    SECRET_KEY: local-test-secret
+    REF_DATABASE_URL: sqlite:////tmp/ref.db
+    REF_CONFIGURATION: /app/.ref
+  volumes:
+  - name: tmp
+    emptyDir: {}
+  volumeMounts:
+  - name: tmp
+    mountPath: /tmp
+    readOnly: false

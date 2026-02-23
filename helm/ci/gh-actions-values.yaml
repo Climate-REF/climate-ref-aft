@@ -1,5 +1,14 @@
-ingress:
-  host: Climate-ref.test
+api:
+  env:
+    SECRET_KEY: ci-test-secret
+    REF_DATABASE_URL: sqlite:////tmp/ref.db
+  volumes:
+  - name: tmp
+    emptyDir: {}
+  volumeMounts:
+  - name: tmp
+    mountPath: /tmp
+    readOnly: false
 
 service:
   type: NodePort
