@@ -29,6 +29,7 @@ api:
     enabled: false
     hostnames: []
     parentRefs: []
+    filters: []
     annotations: {}
     labels: {}
 
@@ -71,6 +72,11 @@ flower:
     CELERY_BROKER_URL: redis://{{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ .Values.dragonfly.service.port }}
     CELERY_RESULT_BACKEND: redis://{{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ .Values.dragonfly.service.port }}
 
+  # Additional Celery configuration for Flower (rendered as celeryconfig.py)
+  # Use this for settings that cannot be set via environment variables
+  celeryConfig: |
+    accept_content = ['application/json', 'application/x-python-serialize']
+
   ingress:
     enabled: false
     host:
@@ -82,6 +88,7 @@ flower:
     enabled: false
     hostnames: []
     parentRefs: []
+    filters: []
     annotations: {}
     labels: {}
 
@@ -199,4 +206,3 @@ providers:
   esmvaltool: {}
   pmp: {}
   ilamb: {}
-  example: {}
