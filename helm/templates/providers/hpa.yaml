@@ -1,7 +1,6 @@
-{{- range $provider, $spec := (omit .Values.providers "defaults") }}
+{{- range $provider, $spec := (omit .Values.providers "defaults") -}}
 {{- $spec := merge (deepCopy $.Values.defaults) $spec -}}
 {{- if and $spec.autoscaling $spec.autoscaling.enabled }}
----
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -29,4 +28,5 @@ spec:
         type: Value
         value: "50" # Scale up if queue length exceeds 50
 {{- end }}
+---
 {{- end }}
