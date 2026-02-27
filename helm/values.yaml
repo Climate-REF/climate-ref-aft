@@ -15,7 +15,7 @@ api:
     ENVIRONMENT: production
     LOG_LEVEL: INFO
     SECRET_KEY: changethis          # Must override in production
-    REF_DATABASE_URL: ""            # Required: e.g. postgresql://user:pass@host:5432/db
+    REF_DATABASE_URL: ""            # Required: e.g. postgresql://user:pass@host:5432/db or sqlite:////path/to/db
     REF_CONFIGURATION: /app/.ref
 
   ingress:
@@ -151,7 +151,7 @@ defaults:
   image:
     repository: ghcr.io/climate-ref/climate-ref
     pullPolicy: IfNotPresent
-    tag: v0.9.1
+    tag: v0.11.1
 
   annotations: {}
 
@@ -199,4 +199,3 @@ providers:
   esmvaltool: {}
   pmp: {}
   ilamb: {}
-  example: {}

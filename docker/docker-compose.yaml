@@ -86,11 +86,6 @@ services:
       service: climate-ref
     command: celery start-worker --provider ilamb --loglevel INFO
 
-  climate-ref-example:
-    extends:
-      service: climate-ref
-    command: celery start-worker --provider example --loglevel INFO
-
 volumes:
   ref:
   postgres-data:

@@ -7,7 +7,7 @@ This project uses [Calendar Versioning](https://calver.org/) with the format `YY
 
 <!-- towncrier release notes start -->
 
-## [2026.02] - Unreleased
+## [2026.02.0] - Unreleased
 
 ### Fixed
 
@@ -28,11 +28,11 @@ This project uses [Calendar Versioning](https://calver.org/) with the format `YY
 
 ### Component Versions
 
-| Component | Version |
-|-----------|---------|
-| climate-ref-core | >=0.9.0 |
-| climate-ref | >=0.9.0 |
-| climate-ref-celery | >=0.9.0 |
-| climate-ref-esmvaltool | >=0.9.0 |
-| climate-ref-pmp | >=0.9.0 |
-| climate-ref-ilamb | >=0.9.0 |
+| Component              | Version |
+| ---------------------- | ------- |
+| climate-ref-core       | 0.11.1  |
+| climate-ref            | 0.11.1  |
+| climate-ref-celery     | 0.11.1  |
+| climate-ref-esmvaltool | 0.11.1  |
+| climate-ref-pmp        | 0.11.1  |
+| climate-ref-ilamb      | 0.11.1  |

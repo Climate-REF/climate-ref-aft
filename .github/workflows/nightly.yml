@@ -27,7 +27,7 @@ jobs:
           - name: "latest-core"
             description: "Test with latest core from main branch"
           - name: "latest-all"
-            description: "Test with latest everything from main branches"
+            description: "Test with latest core and available providers from main branches"
     name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4
@@ -69,4 +69,4 @@ jobs:
           "
 
       - name: Run provider discovery test
-        run: uv run pytest tests/integration/test_cmip7_aft.py::test_provider_discovery -v
+        run: uv run pytest tests/integration/test_cmip7_aft.py::test_provider_discovery -v --slow

@@ -1,6 +1,6 @@
 [project]
 name = "climate-ref-aft"
-version = "2026.02"
+version = "2026.02.0"
 description = "CMIP7 Assessment Fast Track - deployment configuration and integration tests for Climate REF"
 readme = "README.md"
 authors = [
@@ -14,19 +14,19 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering",
     "License :: OSI Approved :: Apache Software License",
-    "Private :: Do Not Upload",
 ]
 
 # Pinned versions of all Climate REF components
-# Update these when preparing a new AFT release
+# We use exact versions here to ensure that the AFT tests run against the same combination of components that will be deployed in production.
+# Also update versions.toml when updating these versions to keep the changelog in sync
 dependencies = [
-    "climate-ref>=0.9.0,<1.0.0",
-    "climate-ref-core>=0.9.0,<1.0.0",
-    "climate-ref-celery>=0.9.0,<1.0.0",
-    # Diagnostic providers (installed from PyPI after repo split)
-    "climate-ref-esmvaltool>=0.9.0",
-    "climate-ref-pmp>=0.9.0",
-    "climate-ref-ilamb>=0.9.0",
+    "climate-ref==0.11.1",
+    "climate-ref-core==0.11.1",
+    "climate-ref-celery==0.11.1",
+    # Diagnostic providers
+    "climate-ref-esmvaltool==0.11.1",
+    "climate-ref-pmp==0.11.1",
+    "climate-ref-ilamb==0.11.1",
 ]
 
 [project.optional-dependencies]

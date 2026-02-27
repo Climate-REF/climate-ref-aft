@@ -14,14 +14,14 @@ The chart deploys:
 - **ref-app (API)**: FastAPI application serving the REST API and static React frontend
 - **Dragonfly** (Redis-compatible): Message broker and result backend for Celery
 - **Flower**: Web UI for monitoring Celery tasks
-- **Provider Workers**: Celery workers for each diagnostic provider (orchestrator, esmvaltool, pmp, ilamb, example)
+- **Provider Workers**: Celery workers for each diagnostic provider (orchestrator, esmvaltool, pmp, ilamb)
 
 ## Prerequisites
 
 - Kubernetes 1.19+
 - Helm 3.0+
 - Access to container images:
-  - `ghcr.io/climate-ref/ref-app`
+  - `ghcr.io/climate-ref/climate-ref-frontend`
   - `ghcr.io/climate-ref/climate-ref`
   - `mher/flower`
 
@@ -68,7 +68,7 @@ flowchart TB
     api[ref-app<br/><i>API + frontend</i>]
     flower[Flower<br/><i>monitoring</i>]
     dragonfly[Dragonfly<br/><i>Redis broker</i>]
-    db[(PostgreSQL<br/><i>external</i>)]
+    db[(Database<br/><i>PostgreSQL / SQLite</i>)]
 
     subgraph workers[Provider Workers]
         orchestrator[Orchestrator<br/>Worker]
@@ -82,11 +82,13 @@ flowchart TB
     apiIngress --> api
     flowerIngress --> flower
     api --> db
+    orchestrator --> db
     flower --> dragonfly
     dragonfly --> orchestrator
     dragonfly --> esmvaltool
     dragonfly --> pmp
     dragonfly --> ilamb
+    api -. ro .-> pvcs
     orchestrator --> pvcs
     esmvaltool --> pvcs
     pmp --> pvcs
@@ -103,7 +105,6 @@ Each provider worker listens to a specific Celery queue:
 | esmvaltool   | `esmvaltool`       | ESMValTool diagnostics            |
 | pmp          | `pmp`              | PCMDI Metrics Package diagnostics |
 | ilamb        | `ilamb`            | ILAMB diagnostics                 |
-| example      | `example`          | Example provider for testing      |
 
 ## Configuration
 
@@ -123,8 +124,8 @@ The `api` section configures the ref-app (FastAPI + React frontend).
 | --------------------------------- | --------------------------- | --------------------------------- |
 | `api.enabled`                     | Enable the API deployment   | `true`                            |
 | `api.replicaCount`                | Number of API replicas      | `1`                               |
-| `api.image.repository`            | API image repository        | `ghcr.io/climate-ref/ref-app`     |
-| `api.image.tag`                   | API image tag               | `latest`                          |
+| `api.image.repository`            | API image repository        | `ghcr.io/climate-ref/climate-ref-frontend` |
+| `api.image.tag`                   | API image tag               | `main`                            |
 | `api.image.pullPolicy`            | Image pull policy           | `IfNotPresent`                    |
 | `api.service.type`                | Service type                | `ClusterIP`                       |
 | `api.service.port`                | Service port                | `80`                              |
@@ -169,7 +170,7 @@ Set via `api.env`:
 
 | Parameter                   | Description                 | Default |
 | --------------------------- | --------------------------- | ------- |
-| `dragonfly.enabled`         | Enable Dragonfly deployment | `true`  |
+| `dragonfly.enabled`         | Enable Dragonfly subchart (via Chart.yaml condition) | `true` (implicit) |
 | `dragonfly.storage.enabled` | Enable persistent storage   | `true`  |
 
 See [Dragonfly Helm chart](https://github.com/dragonflydb/dragonfly/tree/main/contrib/charts/dragonfly) for all available options.
@@ -218,7 +219,7 @@ These defaults apply to all providers unless overridden per-provider.
 | --------------------------- | ------------------------- | --------------------------------- |
 | `defaults.replicaCount`     | Number of worker replicas | `1`                               |
 | `defaults.image.repository` | Worker image repository   | `ghcr.io/climate-ref/climate-ref` |
-| `defaults.image.tag`        | Worker image tag          | `v0.9.1`                          |
+| `defaults.image.tag`        | Worker image tag          | `v0.11.1`                         |
 | `defaults.image.pullPolicy` | Image pull policy         | `IfNotPresent`                    |
 | `defaults.resources`        | Resource requests/limits  | `{}`                              |
 | `defaults.nodeSelector`     | Node selector             | `{}`                              |
@@ -242,7 +243,6 @@ providers:
         cpu: "1"
   pmp: {}
   ilamb: {}
-  example: {}
 ```
 
 ### Environment Variables
@@ -345,7 +345,7 @@ kubectl logs -l app.kubernetes.io/name=dragonfly
 Access Flower UI:
 
 ```bash
-kubectl port-forward svc/ref-flower 5555:5555
+kubectl port-forward svc/<release-name>-climate-ref-aft-flower 5555:5555
 ```
 
 Open <http://localhost:5555> in your browser.
@@ -355,7 +355,7 @@ Open <http://localhost:5555> in your browser.
 Access the ref-app API:
 
 ```bash
-kubectl port-forward svc/ref-api 8000:80
+kubectl port-forward svc/<release-name>-climate-ref-aft-api 8000:80
 ```
 
 Open <http://localhost:8000> in your browser, or check the health endpoint:
