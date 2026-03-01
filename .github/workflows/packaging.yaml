@@ -86,7 +86,6 @@ jobs:
       run: |
         helm install test oci://ghcr.io/climate-ref/charts/climate-ref-aft \
           --version=${{ needs.helm.outputs.generated-semver }} \
-          --set defaults.image.tag=pr-${{ github.event.pull_request.number }} \
           -f helm/ci/gh-actions-values.yaml
 
         sleep 60
