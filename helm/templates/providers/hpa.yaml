@@ -29,4 +29,4 @@ spec:
         value: "50" # Scale up if queue length exceeds 50
 {{- end }}
 ---
-{{- end }}
+{{ end -}}

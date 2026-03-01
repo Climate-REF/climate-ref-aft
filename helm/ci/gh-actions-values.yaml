@@ -3,6 +3,10 @@ api:
     SECRET_KEY: ci-test-secret
   volumes:
   - name: gha-cached
+    hostPath:
+      path: /cache/ref-config
+  volumeMounts:
+  - name: gha-cached
     mountPath: /ref
     readOnly: true
 
