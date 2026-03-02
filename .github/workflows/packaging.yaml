@@ -127,7 +127,10 @@ jobs:
         kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref -v solve --timeout 720 --one-per-provider \
           --diagnostic global-mean-timeseries \
           --diagnostic annual-cycle \
-          --diagnostic gpp-wecann
+          --diagnostic gpp-wecann \
+          --provider esmvaltool \
+          --provider pmp \
+          --provider ilamb
     - name: Capture Worker Logs on Failure
       if: failure()
       run: |
