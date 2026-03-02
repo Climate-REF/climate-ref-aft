@@ -6,6 +6,16 @@
 # Usage:
 #   docker compose -f docker/docker-compose.yaml up -d
 #   bash scripts/smoke-test.sh
+#
+# To mount local data directories (e.g. pre-fetched input data), layer
+# the local override file on top:
+#
+#   docker compose \
+#     -f docker/docker-compose.yaml \
+#     -f docker/docker-compose.local.yaml \
+#     up -d
+#
+# See docker/docker-compose.local.yaml for available mount options.
 
 name: climate-ref-aft
 services:
@@ -26,18 +36,52 @@ services:
     ports:
       - "5432:5432"
 
-  ref-app:
-    image: ghcr.io/climate-ref/climate-ref-frontend:main
+  # One-shot service to initialise the shared /ref volume.
+  # Creates config, subdirectories, and populates providers.
+  ref-init:
+    image: ghcr.io/climate-ref/climate-ref:main
     platform: linux/amd64
-    restart: always
     depends_on:
       - postgres
       - redis
     environment:
       - REF_DATABASE_URL=postgresql://postgres:example@postgres:5432/postgres
+      - REF_CONFIGURATION=/ref
+      - COLUMNS=150
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        # Create required subdirectories
+        mkdir -p /ref/log /ref/scratch /ref/results /ref/software
+        if [ ! -f /ref/ref.toml ]; then
+          echo "Initialising /ref/ref.toml..."
+          ref config list > /ref/ref.toml
+        fi
+        # Run setup commands to populate the database and providers
+        ref providers setup
+        echo "ref-init complete"
+    volumes:
+      - ref:/ref
+
+  ref-app:
+    image: ghcr.io/climate-ref/climate-ref-frontend:main
+    platform: linux/amd64
+    restart: always
+    depends_on:
+      ref-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+    environment:
+      - REF_DATABASE_URL=postgresql://postgres:example@postgres:5432/postgres
       - ENVIRONMENT=local
       - SECRET_KEY=local-dev-secret
-      - REF_CONFIGURATION=/app/.ref
+      - REF_CONFIGURATION=/ref
+      - COLUMNS=150
+    volumes:
+      - ref:/ref
     ports:
       - "8000:8000"
 
@@ -66,6 +110,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - REF_EXECUTOR=climate_ref_celery.executor.CeleryExecutor
       - REF_DATABASE_URL=postgresql://postgres:example@postgres:5432/postgres
+      - COLUMNS=150
     command: celery start-worker --loglevel INFO
     volumes:
       - ref:/ref
@@ -85,11 +130,6 @@ services:
     extends:
       service: climate-ref
     command: celery start-worker --provider ilamb --loglevel INFO
-
-  climate-ref-example:
-    extends:
-      service: climate-ref
-    command: celery start-worker --provider example --loglevel INFO
 
 volumes:
   ref:

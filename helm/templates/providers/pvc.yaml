@@ -1,5 +1,4 @@
-{{- range $name, $size := .Values.createPVCs }}
----
+{{- range $name, $size := .Values.createPVCs -}}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -12,4 +11,5 @@ spec:
   resources:
     requests:
       storage: {{ $size }}
-{{- end }}
+---
+{{ end -}}

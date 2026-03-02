@@ -1,0 +1,86 @@
+# Optional overrides for local development.
+#
+# Mount pre-fetched data or a local results directory into the stack
+# so you can skip the slow `ref providers` step.
+#
+# Usage:
+#   docker compose \
+#     -f docker/docker-compose.yaml \
+#     -f docker/docker-compose.local.yaml \
+#     up -d
+#
+# Customise the paths below to match your local machine.
+
+services:
+  # Mount local data into the workers so they can access it at /ref/data.
+  # The ref-init service is not overridden here; it still creates ref.toml
+  # on the shared named volume.
+  climate-ref:
+    volumes:
+      - ref:/ref
+      # Cached input data
+      - ${REF_DATASET_CACHE_DIR:-./_data/cache}:/ref/cache/climate_ref
+      # Conda environments
+      # This saves time if we are frequently rebuilding the stack
+      - ${REF_SOFTWARE_ROOT:-./_data/software}:/ref/software
+      # Pre-fetched input datasets (CMIP6, obs4REF, etc.)
+      # Example: ./local-data/sample-data contains CMIP6/ and obs4REF/ subdirs
+      - ${REF_DATA_DIR:-./_data/sample-data}:/data:ro
+      # Persist results across restarts
+      # - ${REF_RESULTS_DIR:-./_data/results}:/ref/results
+
+  ref-init:
+    volumes:
+      - ref:/ref
+      - ${REF_DATASET_CACHE_DIR:-./_data/cache}:/ref/cache/climate_ref
+      - ${REF_SOFTWARE_ROOT:-./_data/software}:/ref/software
+
+  ref-app:
+    volumes:
+      - ref:/ref
+      # Give the API read access to results
+      - ${REF_RESULTS_DIR:-./_data/results}:/ref/results:ro
+
+  climate-ref-esmvaltool:
+   volumes:
+      - ref:/ref
+      # Cached input data
+      - ${REF_DATASET_CACHE_DIR:-./_data/cache}:/ref/cache/climate_ref
+      # Conda environments
+      # This saves time if we are frequently rebuilding the stack
+      - ${REF_SOFTWARE_ROOT:-./_data/software}:/ref/software
+      # Pre-fetched input datasets (CMIP6, obs4REF, etc.)
+      # Example: ./local-data/sample-data contains CMIP6/ and obs4REF/ subdirs
+      - ${REF_DATA_DIR:-./_data/sample-data}:/data:ro
+      # Persist results across restarts
+      # - ${REF_RESULTS_DIR:-./_data/results}:/ref/results
+
+  climate-ref-pmp:
+   volumes:
+      - ref:/ref
+      # Cached input data
+      - ${REF_DATASET_CACHE_DIR:-./_data/cache}:/ref/cache/climate_ref
+      # Conda environments
+      # This saves time if we are frequently rebuilding the stack
+      - ${REF_SOFTWARE_ROOT:-./_data/software}:/ref/software
+      # Pre-fetched input datasets (CMIP6, obs4REF, etc.)
+      # Example: ./local-data/sample-data contains CMIP6/ and obs4REF/ subdirs
+      - ${REF_DATA_DIR:-./_data/sample-data}:/data:ro
+      # Persist results across restarts
+      # - ${REF_RESULTS_DIR:-./_data/results}:/ref/results
+
+  climate-ref-ilamb:
+   volumes:
+      - ref:/ref
+      # Cached input data
+      - ${REF_DATASET_CACHE_DIR:-./_data/cache}:/ref/cache/climate_ref
+      # Conda environments
+      # This saves time if we are frequently rebuilding the stack
+      - ${REF_SOFTWARE_ROOT:-./_data/software}:/ref/software
+      # Pre-fetched input datasets (CMIP6, obs4REF, etc.)
+      # Example: ./local-data/sample-data contains CMIP6/ and obs4REF/ subdirs
+      - ${REF_DATA_DIR:-./_data/sample-data}:/data:ro
+      # Persist results across restarts
+      # - ${REF_RESULTS_DIR:-./_data/results}:/ref/results
+volumes:
+  ref:

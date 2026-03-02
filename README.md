@@ -6,26 +6,27 @@ evaluation pipeline built on [Climate REF](https://github.com/Climate-REF/climat
 
 ## What This Repository Contains
 
-| Directory | Purpose |
-|-----------|---------|
-| `helm/` | Helm chart for Kubernetes deployment |
-| `docker/` | Docker Compose for local development and testing |
-| `tests/` | Cross-provider integration tests |
-| `scripts/` | Smoke tests and deployment helpers |
-| `versions.toml` | Version manifest pinning all component versions |
+| Directory       | Purpose                                          |
+| --------------- | ------------------------------------------------ |
+| `helm/`         | Helm chart for Kubernetes deployment             |
+| `docker/`       | Docker Compose for local development and testing |
+| `tests/`        | Cross-provider integration tests                 |
+| `scripts/`      | Smoke tests and deployment helpers               |
+| `versions.toml` | Version manifest pinning all component versions  |
 
 ## Components
 
 The AFT deployment brings together independently versioned packages:
 
-| Package | Repository | Description |
-|---------|------------|-------------|
-| `climate-ref-core` | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | Core library with base classes and interfaces |
-| `climate-ref` | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | Main application, CLI, database, solver |
-| `climate-ref-celery` | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | Celery executor for distributed execution |
-| `climate-ref-esmvaltool` | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | ESMValTool diagnostic provider |
-| `climate-ref-pmp` | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | PCMDI Metrics Package diagnostic provider |
-| `climate-ref-ilamb` | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | ILAMB diagnostic provider |
+| Package                  | Repository                                                            | Description                                   |
+| ------------------------ | --------------------------------------------------------------------- | --------------------------------------------- |
+| `climate-ref-core`       | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | Core library with base classes and interfaces |
+| `climate-ref`            | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | Main application, CLI, database, solver       |
+| `climate-ref-celery`     | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | Celery executor for distributed execution     |
+| `climate-ref-esmvaltool` | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | ESMValTool diagnostic provider                |
+| `climate-ref-pmp`        | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | PCMDI Metrics Package diagnostic provider     |
+| `climate-ref-ilamb`      | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | ILAMB diagnostic provider                     |
+| `climate-ref-frontend`   | [Climate-REF/ref-ap](https://github.com/Climate-REF/ref-app)          | API + Frontend                                |
 
 Note: we intend to split the providers out into their own repositories in the coming weeks.
 
@@ -55,7 +56,7 @@ bash scripts/smoke-test.sh
 helm install ref ./helm -f helm/local-test-values.yaml
 
 # Or from the OCI registry
-helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.9.1
+helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.11.1
 ```
 
 ### Integration Tests

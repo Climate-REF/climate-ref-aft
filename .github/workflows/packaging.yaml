@@ -16,26 +16,9 @@ permissions:
   id-token: write
 
 jobs:
-  changes:
-    name: Detect Changes
-    runs-on: ubuntu-latest
-    outputs:
-      helm: ${{ steps.filter.outputs.helm }}
-    steps:
-      - uses: actions/checkout@v6
-      # - uses: dorny/paths-filter@v3
-      #   id: filter
-      #   with:
-      #     filters: |
-      #       helm:
-      #         - 'helm/**'
-            
-
   helm:
     name: Helm Chart
     runs-on: ubuntu-latest
-    needs: [changes]
-    if: needs.changes.outputs.helm == 'true' || github.event_name != 'pull_request'
     permissions:
       packages: write
     outputs:
@@ -80,8 +63,7 @@ jobs:
     name: Test Helm Deployment
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event_name == 'pull_request' && needs.changes.outputs.helm == 'true'
-    needs: [changes, helm]
+    needs: [helm]
     steps:
     - uses: actions/checkout@v6
     - name: Cache Sample Data (Restore)
@@ -104,7 +86,6 @@ jobs:
       run: |
         helm install test oci://ghcr.io/climate-ref/charts/climate-ref-aft \
           --version=${{ needs.helm.outputs.generated-semver }} \
-          --set defaults.image.tag=pr-${{ github.event.pull_request.number }} \
           -f helm/ci/gh-actions-values.yaml
 
         sleep 60
@@ -146,7 +127,10 @@ jobs:
         kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref -v solve --timeout 720 --one-per-provider \
           --diagnostic global-mean-timeseries \
           --diagnostic annual-cycle \
-          --diagnostic gpp-wecann
+          --diagnostic gpp-wecann \
+          --provider esmvaltool \
+          --provider pmp \
+          --provider ilamb
     - name: Capture Worker Logs on Failure
       if: failure()
       run: |
@@ -158,9 +142,6 @@ jobs:
         echo ""
         echo "=== ILAMB Worker Logs ==="
         kubectl logs -l app.kubernetes.io/component=ilamb --tail=500 || true
-        echo ""
-        echo "=== Example Worker Logs ==="
-        kubectl logs -l app.kubernetes.io/component=example --tail=500 || true
         echo ""
         echo "=== Orchestrator Worker Logs ==="
         kubectl logs -l app.kubernetes.io/component=orchestrator --tail=500 || true

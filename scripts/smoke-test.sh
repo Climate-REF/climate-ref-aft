@@ -43,7 +43,7 @@ docker compose -f "$COMPOSE_FILE" up -d
 
 # Check if all services are running
 echo "Checking service health..."
-services=("redis" "postgres" "flower" "climate-ref" "climate-ref-esmvaltool" "climate-ref-pmp" "climate-ref-ilamb")
+services=("redis" "postgres" "ref-app" "flower" "climate-ref" "climate-ref-esmvaltool" "climate-ref-pmp" "climate-ref-ilamb")
 for service in "${services[@]}"; do
     check_service "$service" || exit 1
 done

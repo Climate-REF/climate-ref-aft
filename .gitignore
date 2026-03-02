@@ -33,5 +33,10 @@ test-outputs/
 helm/charts/
 helm/Chart.lock
 
+# Docker
+docker/_data
 # uv
 uv.lock
+
+# Environment management
+.envrc
