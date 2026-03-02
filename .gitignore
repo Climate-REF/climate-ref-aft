@@ -29,14 +29,13 @@ Thumbs.db
 htmlcov/
 test-outputs/
 
+
 # Helm
 helm/charts/
 helm/Chart.lock
 
 # Docker
 docker/_data
-# uv
-uv.lock
 
 # Environment management
 .envrc

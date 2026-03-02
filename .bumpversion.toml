@@ -1,10 +1,19 @@
 [tool.bumpversion]
-current_version = "2026.02"
-parse = "(?P<major>\\d{4})\\.(?P<minor>\\d{2})"
-serialize = ["{major}.{minor}"]
+current_version = "2026.03.0"
+parse = """(?x)                     # Verbose mode
+    (?P<release>                    # The release part
+        (?:[1-9][0-9]{3})\\.        # YYYY.
+        (?:0[1-9]|1[0-2])           # MM (01-12)
+    )
+    (?:\\.(?P<patch>\\d+))?         # .patch, optional
+"""
+serialize = ["{release}.{patch}"]
 commit = true
 tag = true
 pre_commit_hooks = ["uv run towncrier build --yes"]
+
+[tool.bumpversion.parts.release]
+calver_format = "{YYYY}.{0M}"
 
 [[tool.bumpversion.files]]
 filename = "pyproject.toml"
