@@ -449,7 +449,7 @@ wheels = [
 
 [[package]]
 name = "climate-ref"
-version = "0.11.1"
+version = "0.12.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "alembic" },
@@ -468,9 +468,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7a/7d/4b261df7b90abf6414861c4b7a44cd36b6b33693eb8ec115712794c38434/climate_ref-0.11.1.tar.gz", hash = "sha256:7ed39ee340a1a35b81e420e2492ecec447f8996f1acc133463f9fcdb3e8cdbd3", size = 241170, upload-time = "2026-02-24T08:43:52.62Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/3c/a83b0b16a974200fd6bfd480df95dd2f34953f503d6c2655e1fa1c34fd95/climate_ref-0.12.3.tar.gz", hash = "sha256:d7bb5b06ce7a0e53c290b4e719d4c3b08b18d6d797dd0708bcd7445d629d1fa8", size = 263820, upload-time = "2026-03-30T15:54:03.271Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/31/99/886a5e6e73b455bb18a451023d11649271a74cd2e128f1368b59b0e18c19/climate_ref-0.11.1-py3-none-any.whl", hash = "sha256:b8740fa6660ac7f4ccdf20d9cd162af45d127cac0abf07ab166fc376ada922af", size = 154841, upload-time = "2026-02-24T08:43:51.444Z" },
+    { url = "https://files.pythonhosted.org/packages/97/9e/eaff51203d5a458b369b64a6d292a5d68c1d79c4bfeb5231d3af665cee5d/climate_ref-0.12.3-py3-none-any.whl", hash = "sha256:ffc70b92923e82cedd65fd88887398650e9abec40454a288ad86e99d9de2610c", size = 163663, upload-time = "2026-03-30T15:54:02.179Z" },
 ]
 
 [package.optional-dependencies]
@@ -481,7 +481,7 @@ test = [
 
 [[package]]
 name = "climate-ref-aft"
-version = "2026.2"
+version = "2026.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "climate-ref" },
@@ -511,13 +511,13 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "climate-ref", specifier = "==0.11.1" },
+    { name = "climate-ref", specifier = "==0.12.3" },
     { name = "climate-ref", extras = ["test"], marker = "extra == 'test'" },
-    { name = "climate-ref-celery", specifier = "==0.11.1" },
-    { name = "climate-ref-core", specifier = "==0.11.1" },
-    { name = "climate-ref-esmvaltool", specifier = "==0.11.1" },
-    { name = "climate-ref-ilamb", specifier = "==0.11.1" },
-    { name = "climate-ref-pmp", specifier = "==0.11.1" },
+    { name = "climate-ref-celery", specifier = "==0.12.3" },
+    { name = "climate-ref-core", specifier = "==0.12.3" },
+    { name = "climate-ref-esmvaltool", specifier = "==0.12.3" },
+    { name = "climate-ref-ilamb", specifier = "==0.12.3" },
+    { name = "climate-ref-pmp", specifier = "==0.12.3" },
     { name = "pandas", marker = "extra == 'test'", specifier = ">=2.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=9.0.0" },
     { name = "pytest-mock", marker = "extra == 'test'", specifier = ">=3.12" },
@@ -535,7 +535,7 @@ dev = [
 
 [[package]]
 name = "climate-ref-celery"
-version = "0.11.1"
+version = "0.12.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "celery", extra = ["redis"] },
@@ -546,14 +546,14 @@ dependencies = [
     { name = "tqdm" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cb/1f/6e51b884eb759f6a111af35d51f4c40553177b775157cd5b90f62a41c89e/climate_ref_celery-0.11.1.tar.gz", hash = "sha256:a92beb6b97646fe97884559a790b862a171ca9b0bacc0c6913afae6f8d40c1e8", size = 17100, upload-time = "2026-02-24T08:43:54.703Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/04/5018e9cbcb0ae2b8e977272f822b5a367de3e031495068d7159c87bc1e16/climate_ref_celery-0.12.3.tar.gz", hash = "sha256:92f91d0d48653d469c47e54869ae52a9ddfa69d6af3eab3e7eafe96df3df0f72", size = 17114, upload-time = "2026-03-30T15:54:04.971Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/74/ceae6ec738a97f174d63eb8b388c397ad49317ef5fe0c8fb5e56cbe5e07c/climate_ref_celery-0.11.1-py3-none-any.whl", hash = "sha256:26a18b8ca9b9c91e1bc6f28a9949f5c63d576170e3e469d35abdf5a4fb94774b", size = 17969, upload-time = "2026-02-24T08:43:53.794Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/23/4dac5f62efd1635d54490888c5f77fa3854a6285dcabbad81f7b237f879f/climate_ref_celery-0.12.3-py3-none-any.whl", hash = "sha256:5f35de6c22ce4fba7afef97feb3a085fd3ed72812956323111ec5be6bad34caa", size = 17970, upload-time = "2026-03-30T15:54:04.15Z" },
 ]
 
 [[package]]
 name = "climate-ref-core"
-version = "0.11.1"
+version = "0.12.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -574,14 +574,14 @@ dependencies = [
     { name = "setuptools" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/40/4a/40100c9e1f4aa68812970242344b49af12105a5770d20520c5756448f6c3/climate_ref_core-0.11.1.tar.gz", hash = "sha256:e1e30c5bd88004695d3665982084e7da5f253976fa58740ef7cb8c9538fb07cd", size = 110017, upload-time = "2026-02-24T08:43:57.512Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/eb/3a/378e6677573d67e143aaa197d5fba0040c09c4836d71a9a695fcac6b0cf3/climate_ref_core-0.12.3.tar.gz", hash = "sha256:7a91cd9c1c3b67749c81a92ea86ad42b4dce9223ab8763d7a83b99e4641e5dde", size = 115343, upload-time = "2026-03-30T15:54:07.39Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3b/14/9fe24adab84c53012adb7a674691f82e7828acae2ae0912846ce4d8341a8/climate_ref_core-0.11.1-py3-none-any.whl", hash = "sha256:a14c35a14f50a753fb1342bf37165399d913468080759b5b24af8614d3abad10", size = 80922, upload-time = "2026-02-24T08:43:55.41Z" },
+    { url = "https://files.pythonhosted.org/packages/af/f4/f5971fa66b846cb72237debe86134743049a9cf685e12f34c33fb4792cd6/climate_ref_core-0.12.3-py3-none-any.whl", hash = "sha256:4b9c3f0178a97648994379badaab86b980db34c385e8b2f254e937b001986148", size = 83583, upload-time = "2026-03-30T15:54:06.12Z" },
 ]
 
 [[package]]
 name = "climate-ref-esmvaltool"
-version = "0.11.1"
+version = "0.12.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cftime" },
@@ -591,14 +591,14 @@ dependencies = [
     { name = "pyyaml" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6f/8e/f130707effd10feaec7ed8b86f80114e652f2f17a2c0faf1087c940716bc/climate_ref_esmvaltool-0.11.1.tar.gz", hash = "sha256:4ac15b67fef83bdca9de944c610383e224f1e49afd53a0214529a4bedd2f31bf", size = 207712, upload-time = "2026-02-24T08:43:59.789Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9c/73/abf7063be761a1164c888e2269db3864533e045defedf0a925b7cc08bbc5/climate_ref_esmvaltool-0.12.3.tar.gz", hash = "sha256:e0cdb543a9862dcd7931dc42d2b7341d6f104899aa7aa6ba76aed6f97bfeef49", size = 264268, upload-time = "2026-03-30T15:54:09.569Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/da/71/3f6ca2c52e37f3f6e5ce4be615cff4f2d63f098b73f010aa20a9458b54e7/climate_ref_esmvaltool-0.11.1-py3-none-any.whl", hash = "sha256:340048dc2910491246518b2b10013d1d001b0e303fc2870a6a50d02cde8d2079", size = 157924, upload-time = "2026-02-24T08:43:58.56Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/2d/de3a5de1bf188d029230a42e7551e49d9dcd1b5432c02ee082f5a6b5938e/climate_ref_esmvaltool-0.12.3-py3-none-any.whl", hash = "sha256:8f137b76f83a6e0b51ed756d7ff59c6396b2fd9b5bce9f181d22e43432ad2639", size = 160547, upload-time = "2026-03-30T15:54:08.306Z" },
 ]
 
 [[package]]
 name = "climate-ref-ilamb"
-version = "0.11.1"
+version = "0.12.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "climate-ref-core" },
@@ -606,21 +606,21 @@ dependencies = [
     { name = "scipy" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c8/1c/409e61c26156d0f219e8aa5c62dd4293535a6e71e9c532d7f47957353a79/climate_ref_ilamb-0.11.1.tar.gz", hash = "sha256:a9aba43e5f9606d015bf8aef7a06f750b3b0a1cbe25dd5ba17a4d1d260bd67f5", size = 27435, upload-time = "2026-02-24T08:44:01.527Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/30/89/fffd607df548d06c02d5fd7f1fd2b0a174f5ccdf53790950fc8781c166e3/climate_ref_ilamb-0.12.3.tar.gz", hash = "sha256:dbd6290d0948efd88228abd584f520398147992ae9a1834a6def3b5efd89b2d0", size = 43678, upload-time = "2026-03-30T15:54:11.186Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3a/ab/06ff356ad19f2219dd9a5dc07e2d254b0706f4f846d7ae1f722754a6aa36/climate_ref_ilamb-0.11.1-py3-none-any.whl", hash = "sha256:358d5b7ac5e2587f3b5b4321e514b37a6e3b02aafa6ec21fa8226bb22c061fdb", size = 18585, upload-time = "2026-02-24T08:44:00.471Z" },
+    { url = "https://files.pythonhosted.org/packages/a6/9d/053dc4e05790db78229ad371ae167b96b0831d823ce48321db60f70ce424/climate_ref_ilamb-0.12.3-py3-none-any.whl", hash = "sha256:d5d7a41a47b7465c013427880e5196621a878532000630508b67cbd11de34a23", size = 20282, upload-time = "2026-03-30T15:54:10.353Z" },
 ]
 
 [[package]]
 name = "climate-ref-pmp"
-version = "0.11.1"
+version = "0.12.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "climate-ref-core" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/28/dd/5512b837f1350786d63422907680f9b9dca81f28aa2ba3033eac62faabac/climate_ref_pmp-0.11.1.tar.gz", hash = "sha256:7073f878598e02f01948a71e00d719d93c1004e5395c5e39200b37d973d5c8b3", size = 110658, upload-time = "2026-02-24T08:44:03.242Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0e/44/5e56e8e00be805ff1e0cb6ee632ee5291b389420809ae71d25b7211efaac/climate_ref_pmp-0.12.3.tar.gz", hash = "sha256:538fa021141577ff29635174abbcacc3aea071ff0c1e4146083570bf4b61a8af", size = 124042, upload-time = "2026-03-30T15:54:12.759Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0b/58/f34d06f0e27c5f265643c06118e3ccd6f9fef6e43c3c2815000193a91fe3/climate_ref_pmp-0.11.1-py3-none-any.whl", hash = "sha256:6c606414639fcdc279ad98becc539e48e3c3306863d777e8a4371fc477da95d0", size = 97027, upload-time = "2026-02-24T08:44:02.296Z" },
+    { url = "https://files.pythonhosted.org/packages/30/1c/8fb0d1193afb263c15f2d43b8ad4a87fe16b4b9b172bc4895b63f4502d63/climate_ref_pmp-0.12.3-py3-none-any.whl", hash = "sha256:96a0ea024833a3aa5f044b24aa4578988d7cba87fc7737876cbb653ee14b1bb8", size = 97740, upload-time = "2026-03-30T15:54:11.829Z" },
 ]
 
 [[package]]
@@ -1088,7 +1088,7 @@ wheels = [
 
 [[package]]
 name = "ilamb3"
-version = "2025.9.9"
+version = "2026.2.19"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cartopy" },
@@ -1103,14 +1103,17 @@ dependencies = [
     { name = "pandas" },
     { name = "pint-xarray" },
     { name = "pooch" },
+    { name = "pyarrow" },
     { name = "pyyaml" },
     { name = "scipy" },
     { name = "statsmodels" },
+    { name = "tqdm" },
+    { name = "typer" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3a/92/4026b03878bc64cb46d4cf8f87fe66ab8472f7040a1c7b13f45c8c764a39/ilamb3-2025.9.9.tar.gz", hash = "sha256:fd0c3e55c322dbf0ad74ea82c26c10543e507cab64cd89c7a0b83aa894062987", size = 430926, upload-time = "2025-09-09T19:57:28.051Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/76/1b/1fbab0ecd53126c1771df7cef3574a52019eb8f24ea6e6e33033765259fb/ilamb3-2026.2.19.tar.gz", hash = "sha256:28c2aff287309c13932d300702819ddd799acb06ee3a989cc3f676ba6ad2f86b", size = 507980, upload-time = "2026-02-19T20:49:16.026Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a5/a4/b2e5838f73306f639ffe5c621f46f2ef1841206c5b9f88609875d5142446/ilamb3-2025.9.9-py3-none-any.whl", hash = "sha256:8b091f59798e663ea4055e606b66c938d850a26191b3425d6e30eb2f89857a0a", size = 98708, upload-time = "2025-09-09T19:57:27.04Z" },
+    { url = "https://files.pythonhosted.org/packages/30/c9/15c6ee07a2e272ec9ffc76f0f04d1d86c717615b39d864eebce9818c0efc/ilamb3-2026.2.19-py3-none-any.whl", hash = "sha256:dbfbef38c11b13d832670ea7723ed319a24df2e736ceae78d85c1f78dcdb0c1c", size = 125871, upload-time = "2026-02-19T20:49:18.041Z" },
 ]
 
 [[package]]

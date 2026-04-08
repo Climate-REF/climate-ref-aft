@@ -12,15 +12,15 @@ version = "2026.02.0"
 
 [components]
 # Core framework (from Climate-REF/climate-ref monorepo)
-climate-ref-core = "0.11.1"
-climate-ref = "0.11.1"
-climate-ref-celery = "0.11.1"
+climate-ref-core = "0.12.3"
+climate-ref = "0.12.3"
+climate-ref-celery = "0.12.3"
 
 # Diagnostic providers (standalone repos)
-climate-ref-esmvaltool = "0.11.1"
-climate-ref-pmp = "0.11.1"
-climate-ref-ilamb = "0.11.1"
+climate-ref-esmvaltool = "0.12.3"
+climate-ref-pmp = "0.12.3"
+climate-ref-ilamb = "0.12.3"
 
 [helm]
-chart-version = "0.11.1"
-app-version = "0.11.1"
+chart-version = "0.12.3"
+app-version = "0.12.3"
