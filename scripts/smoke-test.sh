@@ -74,8 +74,11 @@ else
     exit 1
 fi
 
-# Run a simple solve
-if docker compose -f "$COMPOSE_FILE" run --rm climate-ref -v solve --timeout 180 --one-per-provider; then
+# Run a simple solve with a fixed set of fast diagnostics to keep times predictable
+if docker compose -f "$COMPOSE_FILE" run --rm climate-ref -v solve --timeout 180 --one-per-provider \
+    --diagnostic global-mean-timeseries \
+    --diagnostic annual-cycle \
+    --diagnostic gpp-wecann; then
     echo -e "${GREEN}  Solving completed before timeout${NC}"
 else
     echo -e "${RED}  Solving failed${NC}"

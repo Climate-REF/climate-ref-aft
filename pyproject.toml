@@ -20,13 +20,13 @@ classifiers = [
 # We use exact versions here to ensure that the AFT tests run against the same combination of components that will be deployed in production.
 # Also update versions.toml when updating these versions to keep the changelog in sync
 dependencies = [
-    "climate-ref==0.11.1",
-    "climate-ref-core==0.11.1",
-    "climate-ref-celery==0.11.1",
+    "climate-ref==0.12.3",
+    "climate-ref-core==0.12.3",
+    "climate-ref-celery==0.12.3",
     # Diagnostic providers
-    "climate-ref-esmvaltool==0.11.1",
-    "climate-ref-pmp==0.11.1",
-    "climate-ref-ilamb==0.11.1",
+    "climate-ref-esmvaltool==0.12.3",
+    "climate-ref-pmp==0.12.3",
+    "climate-ref-ilamb==0.12.3",
 ]
 
 [project.optional-dependencies]
