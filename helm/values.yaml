@@ -15,8 +15,7 @@ api:
     ENVIRONMENT: production
     LOG_LEVEL: INFO
     SECRET_KEY: changethis          # Must override in production
-    REF_DATABASE_URL: ""            # Required: e.g. postgresql://user:pass@host:5432/db or sqlite:////path/to/db
-    REF_CONFIGURATION: /app/.ref
+    REF_CONFIGURATION: /ref
 
   ingress:
     enabled: false
@@ -148,6 +147,8 @@ defaults:
     CELERY_ACCEPT_CONTENT: |
       ["json", "pickle"]
     REF_EXECUTOR: climate_ref_celery.executor.CeleryExecutor
+    REF_CONFIGURATION: /ref
+    REF_SOFTWARE_ROOT: /ref/software
     # Set HOME to writable location to fix intake-esgf and ilamb3 config directory creation
     HOME: /tmp
     # Celery reliability tuning (uncomment to override base.py defaults)
