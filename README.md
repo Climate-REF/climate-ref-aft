@@ -56,7 +56,7 @@ bash scripts/smoke-test.sh
 helm install ref ./helm -f helm/local-test-values.yaml
 
 # Or from the OCI registry
-helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.11.1
+helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.12.3
 ```
 
 ### Integration Tests
