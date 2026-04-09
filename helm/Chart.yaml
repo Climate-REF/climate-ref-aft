@@ -3,13 +3,10 @@ name: climate-ref-aft
 description: A Helm chart for deploying the Climate REF application for the CMIP7 Assessment Fasttrack (AFT)
 type: application
 
-# This is the chart version. This version number should be incremented each time you make changes
-# to the chart and its templates, including the app version.
-# Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 0.12.3
+# Chart version tracks the AFT repo release version (SemVer)
+version: 0.1.0
 
-# This is the version number of the application being deployed.
-# This should match the chart version for coupled versioning.
+# Application version tracks the climate-ref core version
 appVersion: "0.12.3"
 
 dependencies:

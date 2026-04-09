@@ -1,7 +1,7 @@
 # Release Workflow
 #
-# Triggered on tag push (e.g., v2026.02). Publishes the Helm chart
-# and creates a GitHub release with the version manifest.
+# Triggered on tag push (e.g., v0.1.0).
+# Publishes the Helm chart and creates a GitHub release with the version manifest.
 
 name: Release
 
@@ -19,10 +19,10 @@ jobs:
     name: Publish Helm Chart
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Helm
-        uses: azure/setup-helm@v4.3.1
+        uses: azure/setup-helm@v5
 
       - name: Login to GHCR
         run: |
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [helm]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Create release
         uses: softprops/action-gh-release@v2

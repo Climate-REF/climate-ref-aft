@@ -1,19 +1,17 @@
 [tool.bumpversion]
-current_version = "2026.02.0"
-parse = """(?x)                     # Verbose mode
-    (?P<release>                    # The release part
-        (?:[1-9][0-9]{3})\\.        # YYYY.
-        (?:0[1-9]|1[0-2])           # MM (01-12)
-    )
-    (?:\\.(?P<patch>\\d+))?         # .patch, optional
-"""
-serialize = ["{release}.{patch}"]
+current_version = "0.1.0"
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
+serialize = ["{major}.{minor}.{patch}"]
+
 commit = true
 tag = true
-pre_commit_hooks = ["uv run towncrier build --yes"]
-
-[tool.bumpversion.parts.release]
-calver_format = "{YYYY}.{0M}"
+tag_name = "v{new_version}"
+tag_message = "Bump version: {current_version} → {new_version}"
+pre_commit_hooks = [
+    "uv lock",
+    "git add uv.lock",
+    "uv run towncrier build --yes",
+]
 
 [[tool.bumpversion.files]]
 filename = "pyproject.toml"
@@ -24,3 +22,13 @@ replace = 'version = "{new_version}"'
 filename = "versions.toml"
 search = 'version = "{current_version}"'
 replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "versions.toml"
+search = 'chart-version = "{current_version}"'
+replace = 'chart-version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "helm/Chart.yaml"
+search = "version: {current_version}"
+replace = "version: {new_version}"
