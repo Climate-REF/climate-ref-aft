@@ -1,0 +1,28 @@
+# Minimal values for testing a fresh deployment with no pre-existing state.
+# Verifies that workers, dragonfly, and flower start with just env var config.
+
+api:
+  # Disable the API for minimal testing since ref-app requires a ref.toml file.
+  # See: https://github.com/Climate-REF/ref-app/issues/TODO
+  enabled: false
+
+defaults:
+  podSecurityContext:
+    runAsUser: 1000
+
+  volumes:
+  - name: ref-data
+    emptyDir: {}
+  - name: tmp
+    emptyDir: {}
+
+  volumeMounts:
+  - name: ref-data
+    mountPath: /ref
+  - name: tmp
+    mountPath: /tmp
+
+dragonfly:
+  extraArgs:
+  - --proactor_threads=1
+  - --maxmemory=256mb
