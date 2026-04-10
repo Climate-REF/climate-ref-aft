@@ -4,11 +4,6 @@
 api:
   env:
     SECRET_KEY: ci-minimal-test-secret
-  # frontend image runs as root and writes to /root/.cache
-  # override until image is fixed to run as non-root
-  securityContext:
-    runAsNonRoot: false
-    readOnlyRootFilesystem: false
 
 defaults:
   volumes:

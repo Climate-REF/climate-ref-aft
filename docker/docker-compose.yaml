@@ -64,7 +64,7 @@ services:
       - ref:/ref
 
   ref-app:
-    image: ghcr.io/climate-ref/climate-ref-frontend:v0.2.1
+    image: ghcr.io/climate-ref/climate-ref-frontend:v0.2.3
     platform: linux/amd64
     restart: always
     depends_on:
