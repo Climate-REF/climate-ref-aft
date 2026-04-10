@@ -1,10 +1,9 @@
 # Minimal values for testing a fresh deployment with no pre-existing state.
-# Verifies that workers, dragonfly, and flower start with just env var config.
+# Verifies that all components start with just env var config.
 
 api:
-  # Disable the API for minimal testing since ref-app requires a ref.toml file.
-  # See: https://github.com/Climate-REF/ref-app/issues/TODO
-  enabled: false
+  env:
+    SECRET_KEY: ci-minimal-test-secret
 
 defaults:
   podSecurityContext:

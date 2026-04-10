@@ -26,9 +26,6 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - uses: actions/setup-python@v6
-    - name: Install jq
-      run: |
-        sudo apt-get install --yes jq
     - name: Install yq
       run: |
         pip install yq
