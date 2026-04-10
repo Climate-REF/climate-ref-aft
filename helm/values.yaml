@@ -130,8 +130,6 @@ flower:
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
 
-  volumes: []
-  volumeMounts: []
   nodeSelector: {}
   tolerations: []
   affinity: {}
