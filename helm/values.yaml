@@ -108,7 +108,8 @@ flower:
   podAnnotations: {}
   podLabels: {}
 
-  podSecurityContext: {}
+  podSecurityContext:
+    runAsUser: 1000
 
   securityContext:
     capabilities:
@@ -177,6 +178,8 @@ defaults:
   podLabels: {}
 
   podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
     fsGroup: 1000
 
   securityContext:

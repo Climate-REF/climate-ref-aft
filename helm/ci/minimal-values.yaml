@@ -4,11 +4,11 @@
 api:
   env:
     SECRET_KEY: ci-minimal-test-secret
+  # frontend image runs as root — override until image is fixed
+  securityContext:
+    runAsNonRoot: false
 
 defaults:
-  podSecurityContext:
-    runAsUser: 1000
-
   volumes:
   - name: ref-data
     emptyDir: {}
