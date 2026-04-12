@@ -9,17 +9,17 @@ version = "0.1.0"
 
 [components]
 # Core framework (from Climate-REF/climate-ref monorepo)
-climate-ref-core = "0.12.3"
-climate-ref = "0.12.3"
-climate-ref-celery = "0.12.3"
+climate-ref-core = "0.13.0"
+climate-ref = "0.13.0"
+climate-ref-celery = "0.13.0"
 
 # Diagnostic providers (standalone repos)
-climate-ref-esmvaltool = "0.12.3"
-climate-ref-pmp = "0.12.3"
-climate-ref-ilamb = "0.12.3"
+climate-ref-esmvaltool = "0.13.0"
+climate-ref-pmp = "0.13.0"
+climate-ref-ilamb = "0.13.0"
 
 [helm]
 # Chart version tracks the AFT repo version
 chart-version = "0.1.0"
 # App version tracks the climate-ref core version
-app-version = "0.12.3"
+app-version = "0.13.0"
