@@ -40,7 +40,12 @@ api:
   podAnnotations: {}
   podLabels: {}
 
-  podSecurityContext: {}
+  # Frontend image ships a non-numeric USER ("app"); set an explicit
+  # numeric runAsUser so kubelet can verify non-root.
+  podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
 
   securityContext:
     capabilities:
