@@ -39,7 +39,7 @@ services:
   # One-shot service to initialise the shared /ref volume.
   # Creates config, subdirectories, and populates providers.
   ref-init:
-    image: ghcr.io/climate-ref/climate-ref:main
+    image: ghcr.io/climate-ref/climate-ref:v0.13.0
     platform: linux/amd64
     depends_on:
       - postgres
@@ -64,7 +64,7 @@ services:
       - ref:/ref
 
   ref-app:
-    image: ghcr.io/climate-ref/climate-ref-frontend:main
+    image: ghcr.io/climate-ref/climate-ref-frontend:v0.2.3
     platform: linux/amd64
     restart: always
     depends_on:
@@ -99,7 +99,7 @@ services:
 
   # Base worker to track the executions of async tasks
   climate-ref:
-    image: ghcr.io/climate-ref/climate-ref:main
+    image: ghcr.io/climate-ref/climate-ref:v0.13.0
     platform: linux/amd64
     restart: always
     depends_on:

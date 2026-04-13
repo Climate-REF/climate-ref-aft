@@ -9,14 +9,13 @@ api:
   image:
     repository: ghcr.io/climate-ref/climate-ref-frontend
     pullPolicy: IfNotPresent
-    tag: v0.2.0
+    tag: v0.3.0
 
   env:
     ENVIRONMENT: production
     LOG_LEVEL: INFO
     SECRET_KEY: changethis          # Must override in production
-    REF_DATABASE_URL: ""            # Required: e.g. postgresql://user:pass@host:5432/db or sqlite:////path/to/db
-    REF_CONFIGURATION: /app/.ref
+    REF_CONFIGURATION: /ref
 
   ingress:
     enabled: false
@@ -41,7 +40,12 @@ api:
   podAnnotations: {}
   podLabels: {}
 
-  podSecurityContext: {}
+  # Frontend image ships a non-numeric USER ("app"); set an explicit
+  # numeric runAsUser so kubelet can verify non-root.
+  podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
 
   securityContext:
     capabilities:
@@ -109,7 +113,8 @@ flower:
   podAnnotations: {}
   podLabels: {}
 
-  podSecurityContext: {}
+  podSecurityContext:
+    runAsUser: 1000
 
   securityContext:
     capabilities:
@@ -131,8 +136,6 @@ flower:
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
 
-  volumes: []
-  volumeMounts: []
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -148,6 +151,8 @@ defaults:
     CELERY_ACCEPT_CONTENT: |
       ["json", "pickle"]
     REF_EXECUTOR: climate_ref_celery.executor.CeleryExecutor
+    REF_CONFIGURATION: /ref
+    REF_SOFTWARE_ROOT: /ref/software
     # Set HOME to writable location to fix intake-esgf and ilamb3 config directory creation
     HOME: /tmp
     # Celery reliability tuning (uncomment to override base.py defaults)
@@ -164,7 +169,7 @@ defaults:
   image:
     repository: ghcr.io/climate-ref/climate-ref
     pullPolicy: IfNotPresent
-    tag: v0.12.3
+    tag: v0.13.1
 
   annotations: {}
 
@@ -178,6 +183,8 @@ defaults:
   podLabels: {}
 
   podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
     fsGroup: 1000
 
   securityContext:
