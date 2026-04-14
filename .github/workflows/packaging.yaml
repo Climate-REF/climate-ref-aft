@@ -26,9 +26,6 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - uses: actions/setup-python@v6
-    - name: Install jq
-      run: |
-        sudo apt-get install --yes jq
     - name: Install yq
       run: |
         pip install yq
@@ -58,6 +55,53 @@ jobs:
         registry_username: ${{ github.actor }}
         registry_password: ${{ secrets.GITHUB_TOKEN }}
         update_dependencies: 'true'
+
+  test-minimal:
+    name: Test Minimal Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [helm]
+    steps:
+    - uses: actions/checkout@v6
+    - name: Start minikube
+      uses: medyagh/setup-minikube@latest
+    - name: Set up Helm
+      uses: azure/setup-helm@v4.3.1
+    - name: Install Chart (minimal)
+      run: |
+        helm install test oci://ghcr.io/climate-ref/charts/climate-ref-aft \
+          --version=${{ needs.helm.outputs.generated-semver }} \
+          -f helm/ci/minimal-values.yaml
+    - name: Wait for pods
+      run: |
+        echo "Waiting for deployments to be ready..."
+        kubectl wait --for=condition=available deployment --all --timeout=120s
+        kubectl get pods
+    - name: Verify all pods healthy
+      run: |
+        # Check no pods are in CrashLoopBackOff or Error state
+        UNHEALTHY=$(kubectl get pods --no-headers | grep -E 'CrashLoopBackOff|Error|ImagePullBackOff' || true)
+        if [ -n "$UNHEALTHY" ]; then
+          echo "Unhealthy pods found:"
+          echo "$UNHEALTHY"
+          echo ""
+          echo "=== Pod logs ==="
+          for pod in $(echo "$UNHEALTHY" | awk '{print $1}'); do
+            echo "--- $pod ---"
+            kubectl logs "$pod" --tail=50 || true
+          done
+          exit 1
+        fi
+        echo "All pods healthy."
+    - name: Capture logs on failure
+      if: failure()
+      run: |
+        kubectl get pods
+        kubectl describe pods
+        for pod in $(kubectl get pods --no-headers | awk '{print $1}'); do
+          echo "=== $pod ==="
+          kubectl logs "$pod" --tail=100 || true
+        done
 
   test:
     name: Test Helm Deployment

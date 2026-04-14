@@ -32,10 +32,10 @@ Note: we intend to split the providers out into their own repositories in the co
 
 ## Versioning
 
-This repository uses [Calendar Versioning](https://calver.org/) with the format `YYYY.MM`
-(e.g., `2026.02`). Each release represents a tested, deployable combination of all components.
+This repository uses [Semantic Versioning](https://semver.org/).
+Each release represents a tested, deployable combination of all components.
 
-The `versions.toml` file pins the exact version ranges for each component in a given release.
+The `versions.toml` file pins the exact versions of each component in a given release.
 
 ## Quick Start
 
@@ -56,7 +56,7 @@ bash scripts/smoke-test.sh
 helm install ref ./helm -f helm/local-test-values.yaml
 
 # Or from the OCI registry
-helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.11.1
+helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.1.0
 ```
 
 ### Integration Tests
@@ -83,7 +83,7 @@ uv run pytest tests/ -v --slow
 
 ## Release Process
 
-This project uses [Calendar Versioning](https://calver.org/) (`YYYY.MM.P`) with
+This project uses [Semantic Versioning](https://semver.org/) with
 [bump-my-version](https://github.com/callowayproject/bump-my-version) and
 [towncrier](https://towncrier.readthedocs.io/) for changelog generation.
 
@@ -104,29 +104,21 @@ Releases are created via the **Bump version** workflow in GitHub Actions:
 
 1. Go to **Actions** > **Bump version** > **Run workflow**
 2. Choose the bump rule:
-   - `patch` -- increment the patch number (e.g. `2026.02.0` -> `2026.02.1`). Also auto-updates the CalVer portion if the current month has changed.
-   - `release` -- update to the current year/month and reset patch to 0 (e.g. `2026.02.1` -> `2026.03.0`)
+   - `patch` -- bug fixes, config tweaks (e.g. `0.1.0` -> `0.1.1`)
+   - `minor` -- new providers, diagnostics, component upgrades (e.g. `0.1.1` -> `0.2.0`)
+   - `major` -- breaking changes to the Helm values interface (e.g. `0.2.0` -> `1.0.0`)
 
 The workflow will:
 
 1. Compile changelog fragments via towncrier
-2. Bump the version in `pyproject.toml` and `versions.toml`
-3. Create a version commit and tag (e.g. `v2026.03.0`)
+2. Bump the version in `pyproject.toml`, `versions.toml`, and `helm/Chart.yaml`
+3. Create a version commit and tag (e.g. `v0.2.0`)
 4. Push the commit and tag, which triggers `release.yml`
 
 The `release.yml` workflow then:
 
 - Publishes the Helm chart to the GHCR OCI registry
 - Creates a GitHub Release with `versions.toml` attached
-
-### Helm chart versioning
-
-The Helm chart has its own version managed separately via `.bumpversion-helm.toml`.
-Bump it when the chart templates change independently of the AFT release:
-
-```bash
-uv run bump-my-version --config-file .bumpversion-helm.toml bump patch
-```
 
 ## Related
 

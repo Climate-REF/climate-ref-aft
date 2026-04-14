@@ -1,0 +1,24 @@
+# Minimal values for testing a fresh deployment with no pre-existing state.
+# Verifies that all components start with just env var config.
+
+api:
+  env:
+    SECRET_KEY: ci-minimal-test-secret
+
+defaults:
+  volumes:
+  - name: ref-data
+    emptyDir: {}
+  - name: tmp
+    emptyDir: {}
+
+  volumeMounts:
+  - name: ref-data
+    mountPath: /ref
+  - name: tmp
+    mountPath: /tmp
+
+dragonfly:
+  extraArgs:
+  - --proactor_threads=1
+  - --maxmemory=256mb
