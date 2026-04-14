@@ -58,7 +58,14 @@ api:
     type: ClusterIP
     port: 80
 
-  resources: {}
+  # The API eagerly imports all diagnostic providers (esmvaltool/ilamb/pmp)
+  # at startup, which needs well over 512Mi.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
 
   volumes: []
   volumeMounts: []
