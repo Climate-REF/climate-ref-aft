@@ -1,33 +1,13 @@
 # Minimal values for testing a fresh deployment with no pre-existing state.
-# Verifies that all components start with just env var config.
+# Verifies that workers, dragonfly, and flower start with just env var config.
+#
+# The API is disabled here: ref-app eagerly imports diagnostic providers at
+# startup, which requires a populated /ref/software (created by
+# `ref providers setup`). That setup is exercised by the full helm test, not
+# this minimal smoke test.
 
 api:
-  env:
-    SECRET_KEY: ci-minimal-test-secret
-  # The pre-install migrate Job runs in its own pod, so its emptyDir is
-  # not shared with the api pod. Run migration as an init container so
-  # both run in the same pod and share the /ref emptyDir.
-  initContainers:
-  - name: migrate
-    image: ghcr.io/climate-ref/climate-ref:v0.13.1
-    imagePullPolicy: IfNotPresent
-    command: ["ref", "db", "migrate"]
-    env:
-    - name: REF_CONFIGURATION
-      value: /ref
-    - name: HOME
-      value: /tmp
-    securityContext:
-      capabilities:
-        drop:
-        - ALL
-      readOnlyRootFilesystem: true
-      runAsNonRoot: true
-    volumeMounts:
-    - name: ref-data
-      mountPath: /ref
-    - name: tmp
-      mountPath: /tmp
+  enabled: false
 
 defaults:
   volumes:
