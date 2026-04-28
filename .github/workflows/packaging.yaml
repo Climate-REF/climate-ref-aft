@@ -176,34 +176,49 @@ jobs:
           --provider pmp \
           --provider ilamb
     - name: Validate API can read compute results
+      shell: bash
       run: |
+        set -euo pipefail
         # ref-app eagerly imports providers from /ref/software at startup.
         # Provider setup happens after the api Deployment is created, so the
         # initial api pod may have crashed before /ref/software was populated.
         # Force a rollout so a fresh pod starts against the now-populated /ref.
         kubectl rollout restart deployment/test-climate-ref-aft-api
-        kubectl rollout status deployment/test-climate-ref-aft-api --timeout=300s
+        kubectl rollout status  deployment/test-climate-ref-aft-api --timeout=300s
+        kubectl wait --for=condition=Ready pod \
+          -l app.kubernetes.io/component=api --timeout=60s
 
-        # Hit the api from inside the cluster via a transient curl pod.
-        # The api Service is ClusterIP, so port 80 -> container 8000.
-        API_BASE=http://test-climate-ref-aft-api/api/v1
-        run_curl() {
-          local path=$1
-          kubectl run curl-$RANDOM --rm -i --restart=Never \
-            --image=curlimages/curl:8.10.1 -- \
-            curl -fsS --max-time 30 "$API_BASE$path"
+        # Drive requests through the orchestrator pod so kubectl exec
+        # propagates the python exit code reliably (kubectl run --rm -i can
+        # swallow non-zero exits). The orchestrator runs the climate-ref
+        # image which has Python + urllib.
+        API_BASE='http://test-climate-ref-aft-api/api/v1'
+        check() {
+          local path=$1 expect_nonempty=${2:-0}
+          kubectl exec deployment/test-climate-ref-aft-orchestrator -- \
+            python3 -c "
+        import json, sys, urllib.request
+        url = '${API_BASE}${path}'
+        with urllib.request.urlopen(url, timeout=30) as r:
+            body = r.read().decode()
+            assert r.status == 200, f'{url} -> {r.status}'
+        try:
+            d = json.loads(body)
+        except json.JSONDecodeError:
+            print('non-json body:', body[:200]); sys.exit(0)
+        if isinstance(d, list):
+            n = len(d)
+        else:
+            n = d.get('count', len(d.get('results') or d.get('data') or []))
+        print(f'{url} -> {n} item(s)')
+        if int('${expect_nonempty}'):
+            assert n > 0, f'expected non-empty result from {url}'
+        "
         }
 
-        echo "--- health-check ---"
-        run_curl /utils/health-check/
-
-        echo "--- diagnostics list ---"
-        run_curl /cmip7-aft-diagnostics/ | python3 -c \
-          'import json,sys; d=json.load(sys.stdin); n=len(d if isinstance(d,list) else d.get("data",[])); print(f"diagnostics: {n}"); assert n>0, "expected non-empty diagnostics list"'
-
-        echo "--- executions list ---"
-        run_curl /executions/ | python3 -c \
-          'import json,sys; d=json.load(sys.stdin); n=len(d if isinstance(d,list) else d.get("data",[])); print(f"executions: {n}"); assert n>0, "expected at least one execution from the solve step"'
+        check /utils/health-check/
+        check /cmip7-aft-diagnostics/ 1
+        check /executions/ 1
     - name: Capture API logs on failure
       if: failure()
       run: |

@@ -94,7 +94,8 @@ echo "Validating API at $API_URL..."
 api_get() {
     local path=$1
     local label=$2
-    if curl -fsS "$API_URL$path" -o /tmp/ref-api-response.json; then
+    local out=$3
+    if curl -fsS "$API_URL$path" -o "$out"; then
         echo -e "${GREEN}  $label OK${NC}"
     else
         echo -e "${RED}  $label failed${NC}"
@@ -102,12 +103,31 @@ api_get() {
     fi
 }
 
-api_get "/api/v1/utils/health-check/" "health-check"     || exit 1
-api_get "/api/v1/cmip7-aft-diagnostics/" "AFT diagnostics" || exit 1
-api_get "/api/v1/executions/" "executions"               || exit 1
+count_items() {
+    python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+if isinstance(d, list):
+    print(len(d))
+else:
+    print(d.get("count", len(d.get("results") or d.get("data") or [])))
+' "$1"
+}
 
-# Verify the executions endpoint actually returned the rows the solver wrote.
-EXEC_COUNT=$(python3 -c 'import json,sys; d=json.load(open("/tmp/ref-api-response.json")); print(len(d if isinstance(d,list) else d.get("data",[])))')
+api_get "/api/v1/utils/health-check/"     "health-check"    /tmp/ref-api-health.json || exit 1
+api_get "/api/v1/cmip7-aft-diagnostics/"  "AFT diagnostics" /tmp/ref-api-diags.json  || exit 1
+api_get "/api/v1/executions/"             "executions"      /tmp/ref-api-execs.json  || exit 1
+
+DIAG_COUNT=$(count_items /tmp/ref-api-diags.json)
+EXEC_COUNT=$(count_items /tmp/ref-api-execs.json)
+
+if [ "$DIAG_COUNT" -gt 0 ]; then
+    echo -e "${GREEN}  API returned $DIAG_COUNT AFT diagnostics${NC}"
+else
+    echo -e "${RED}  API returned no diagnostics${NC}"
+    exit 1
+fi
+
 if [ "$EXEC_COUNT" -gt 0 ]; then
     echo -e "${GREEN}  API returned $EXEC_COUNT execution records${NC}"
 else

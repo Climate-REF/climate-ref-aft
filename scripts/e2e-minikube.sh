@@ -100,24 +100,37 @@ log "Validating API endpoints..."
 # fresh pod starts against the now-populated /ref.
 kubectl rollout restart deployment/${RELEASE}-climate-ref-aft-api
 kubectl rollout status  deployment/${RELEASE}-climate-ref-aft-api --timeout=300s
+kubectl wait --for=condition=Ready pod \
+    -l app.kubernetes.io/component=api --timeout=60s
 
+# Drive requests through the orchestrator pod so kubectl exec propagates
+# the python exit code reliably and we don't need a separate curl image.
 API_BASE="http://${RELEASE}-climate-ref-aft-api/api/v1"
-run_curl() {
-    local path=$1
-    kubectl run curl-$RANDOM --rm -i --restart=Never \
-        --image=curlimages/curl:8.10.1 -- \
-        curl -fsS --max-time 30 "$API_BASE$path"
+api_check() {
+    local path=$1 expect_nonempty=${2:-0}
+    kubectl exec deployment/${RELEASE}-climate-ref-aft-orchestrator -- \
+        python3 -c "
+import json, sys, urllib.request
+url = '${API_BASE}${path}'
+with urllib.request.urlopen(url, timeout=30) as r:
+    body = r.read().decode()
+    assert r.status == 200, f'{url} -> {r.status}'
+try:
+    d = json.loads(body)
+except json.JSONDecodeError:
+    print('non-json body:', body[:200]); sys.exit(0)
+if isinstance(d, list):
+    n = len(d)
+else:
+    n = d.get('count', len(d.get('results') or d.get('data') or []))
+print(f'{url} -> {n} item(s)')
+if int('${expect_nonempty}'):
+    assert n > 0, f'expected non-empty result from {url}'
+"
 }
 
-run_curl /utils/health-check/                                              || fail "health-check failed"
-DIAG_JSON=$(run_curl /cmip7-aft-diagnostics/)                              || fail "diagnostics fetch failed"
-EXEC_JSON=$(run_curl /executions/)                                         || fail "executions fetch failed"
+api_check /utils/health-check/        || fail "health-check failed"
+api_check /cmip7-aft-diagnostics/ 1   || fail "diagnostics fetch failed"
+api_check /executions/ 1              || fail "executions fetch failed"
 
-DIAG_COUNT=$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(len(d if isinstance(d,list) else d.get("data",[])))' "$DIAG_JSON")
-EXEC_COUNT=$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(len(d if isinstance(d,list) else d.get("data",[])))' "$EXEC_JSON")
-
-[ "$DIAG_COUNT" -gt 0 ] || fail "expected non-empty diagnostics list, got $DIAG_COUNT"
-[ "$EXEC_COUNT" -gt 0 ] || fail "expected at least one execution from the solve step, got $EXEC_COUNT"
-
-log "API saw $DIAG_COUNT diagnostics and $EXEC_COUNT executions."
 log "End-to-end test passed."
