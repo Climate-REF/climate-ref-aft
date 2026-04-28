@@ -4,6 +4,30 @@
 api:
   env:
     SECRET_KEY: ci-minimal-test-secret
+  # The pre-install migrate Job runs in its own pod, so its emptyDir is
+  # not shared with the api pod. Run migration as an init container so
+  # both run in the same pod and share the /ref emptyDir.
+  initContainers:
+  - name: migrate
+    image: ghcr.io/climate-ref/climate-ref:v0.13.1
+    imagePullPolicy: IfNotPresent
+    command: ["ref", "db", "migrate"]
+    env:
+    - name: REF_CONFIGURATION
+      value: /ref
+    - name: HOME
+      value: /tmp
+    securityContext:
+      capabilities:
+        drop:
+        - ALL
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+    volumeMounts:
+    - name: ref-data
+      mountPath: /ref
+    - name: tmp
+      mountPath: /tmp
 
 defaults:
   volumes:
