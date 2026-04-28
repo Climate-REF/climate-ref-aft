@@ -85,5 +85,35 @@ else
     exit 1
 fi
 
+# Validate the API can read the results produced by the compute engine.
+# ref-app exposes read-only endpoints; we verify it can talk to the same
+# database that the workers wrote results into.
+API_URL="${REF_API_URL:-http://localhost:8000}"
+echo "Validating API at $API_URL..."
+
+api_get() {
+    local path=$1
+    local label=$2
+    if curl -fsS "$API_URL$path" -o /tmp/ref-api-response.json; then
+        echo -e "${GREEN}  $label OK${NC}"
+    else
+        echo -e "${RED}  $label failed${NC}"
+        return 1
+    fi
+}
+
+api_get "/api/v1/utils/health-check/" "health-check"     || exit 1
+api_get "/api/v1/cmip7-aft-diagnostics/" "AFT diagnostics" || exit 1
+api_get "/api/v1/executions/" "executions"               || exit 1
+
+# Verify the executions endpoint actually returned the rows the solver wrote.
+EXEC_COUNT=$(python3 -c 'import json,sys; d=json.load(open("/tmp/ref-api-response.json")); print(len(d if isinstance(d,list) else d.get("data",[])))')
+if [ "$EXEC_COUNT" -gt 0 ]; then
+    echo -e "${GREEN}  API returned $EXEC_COUNT execution records${NC}"
+else
+    echo -e "${RED}  API returned no execution records — compute engine results are not visible to API${NC}"
+    exit 1
+fi
+
 echo -e "${GREEN}  All smoke tests passed!${NC}"
 echo "The docker stack is healthy and ready for use."

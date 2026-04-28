@@ -175,6 +175,43 @@ jobs:
           --provider esmvaltool \
           --provider pmp \
           --provider ilamb
+    - name: Validate API can read compute results
+      run: |
+        # ref-app eagerly imports providers from /ref/software at startup.
+        # Provider setup happens after the api Deployment is created, so the
+        # initial api pod may have crashed before /ref/software was populated.
+        # Force a rollout so a fresh pod starts against the now-populated /ref.
+        kubectl rollout restart deployment/test-climate-ref-aft-api
+        kubectl rollout status deployment/test-climate-ref-aft-api --timeout=300s
+
+        # Hit the api from inside the cluster via a transient curl pod.
+        # The api Service is ClusterIP, so port 80 -> container 8000.
+        API_BASE=http://test-climate-ref-aft-api/api/v1
+        run_curl() {
+          local path=$1
+          kubectl run curl-$RANDOM --rm -i --restart=Never \
+            --image=curlimages/curl:8.10.1 -- \
+            curl -fsS --max-time 30 "$API_BASE$path"
+        }
+
+        echo "--- health-check ---"
+        run_curl /utils/health-check/
+
+        echo "--- diagnostics list ---"
+        run_curl /cmip7-aft-diagnostics/ | python3 -c \
+          'import json,sys; d=json.load(sys.stdin); n=len(d if isinstance(d,list) else d.get("data",[])); print(f"diagnostics: {n}"); assert n>0, "expected non-empty diagnostics list"'
+
+        echo "--- executions list ---"
+        run_curl /executions/ | python3 -c \
+          'import json,sys; d=json.load(sys.stdin); n=len(d if isinstance(d,list) else d.get("data",[])); print(f"executions: {n}"); assert n>0, "expected at least one execution from the solve step"'
+    - name: Capture API logs on failure
+      if: failure()
+      run: |
+        echo "=== API Logs ==="
+        kubectl logs -l app.kubernetes.io/component=api --tail=200 --all-containers=true || true
+        echo ""
+        echo "=== API describe ==="
+        kubectl describe deployment/test-climate-ref-aft-api || true
     - name: Capture Worker Logs on Failure
       if: failure()
       run: |

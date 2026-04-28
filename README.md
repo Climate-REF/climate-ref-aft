@@ -45,9 +45,13 @@ The `versions.toml` file pins the exact versions of each component in a given re
 # Start the full stack
 docker compose -f docker/docker-compose.yaml up -d
 
-# Run smoke tests
+# Run end-to-end smoke tests (ingest -> solve -> API validation)
 bash scripts/smoke-test.sh
 ```
+
+`scripts/smoke-test.sh` ingests sample data, runs a small solve across all
+providers, and then hits the `ref-app` API to confirm the records the workers
+wrote are visible to the API.
 
 ### Kubernetes (Helm)
 
@@ -57,6 +61,14 @@ helm install ref ./helm -f helm/local-test-values.yaml
 
 # Or from the OCI registry
 helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.1.0
+```
+
+#### End-to-end on local minikube
+
+```bash
+# Mirrors the Test Helm Deployment CI job: install chart, set up providers,
+# ingest sample data, solve, then validate the API against the same database.
+bash scripts/e2e-minikube.sh
 ```
 
 ### Integration Tests
