@@ -125,7 +125,7 @@ The `api` section configures the ref-app (FastAPI + React frontend).
 | `api.enabled`          | Enable the API deployment | `true`                                     |
 | `api.replicaCount`     | Number of API replicas    | `1`                                        |
 | `api.image.repository` | API image repository      | `ghcr.io/climate-ref/climate-ref-frontend` |
-| `api.image.tag`        | API image tag             | `main`                                     |
+| `api.image.tag`        | API image tag             | `v0.2.3`                                   |
 | `api.image.pullPolicy` | Image pull policy         | `IfNotPresent`                             |
 | `api.service.type`     | Service type              | `ClusterIP`                                |
 | `api.service.port`     | Service port              | `80`                                       |
@@ -143,8 +143,7 @@ Set via `api.env`:
 | `ENVIRONMENT`       | Runtime environment            | `production`                      |
 | `LOG_LEVEL`         | Logging level                  | `INFO`                            |
 | `SECRET_KEY`        | Application secret key         | `changethis` (override in prod!)  |
-| `REF_DATABASE_URL`  | Database connection string     | `""` (required)                   |
-| `REF_CONFIGURATION` | Path to REF configuration      | `/app/.ref`                       |
+| `REF_CONFIGURATION` | Path to REF configuration      | `/ref`                            |
 
 #### API Ingress
 
@@ -219,7 +218,7 @@ These defaults apply to all providers unless overridden per-provider.
 | --------------------------- | ------------------------- | --------------------------------- |
 | `defaults.replicaCount`     | Number of worker replicas | `1`                               |
 | `defaults.image.repository` | Worker image repository   | `ghcr.io/climate-ref/climate-ref` |
-| `defaults.image.tag`        | Worker image tag          | `v0.11.1`                         |
+| `defaults.image.tag`        | Worker image tag          | `v0.13.0`                         |
 | `defaults.image.pullPolicy` | Image pull policy         | `IfNotPresent`                    |
 | `defaults.resources`        | Resource requests/limits  | `{}`                              |
 | `defaults.nodeSelector`     | Node selector             | `{}`                              |
@@ -255,6 +254,8 @@ Environment variables can be set via `defaults.env` or per-provider:
 | `CELERY_RESULT_BACKEND` | Redis result backend URL  | Auto-configured to Dragonfly                 |
 | `CELERY_ACCEPT_CONTENT` | Accepted content types    | `["json", "pickle"]`                         |
 | `REF_EXECUTOR`          | Executor class            | `climate_ref_celery.executor.CeleryExecutor` |
+| `REF_CONFIGURATION`     | Path to REF configuration | `/ref`                                       |
+| `REF_SOFTWARE_ROOT`     | Path to conda environments| `/ref/software`                              |
 | `HOME`                  | Home directory (writable) | `/tmp`                                       |
 
 ### Celery Reliability Settings

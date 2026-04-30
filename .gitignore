@@ -39,3 +39,6 @@ docker/_data
 
 # Environment management
 .envrc
+
+# Random generated file
+working.png

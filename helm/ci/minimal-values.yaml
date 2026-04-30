@@ -1,0 +1,28 @@
+# Minimal values for testing a fresh deployment with no pre-existing state.
+# Verifies that workers, dragonfly, and flower start with just env var config.
+#
+# The API is disabled here: ref-app eagerly imports diagnostic providers at
+# startup, which requires a populated /ref/software (created by
+# `ref providers setup`). That setup is exercised by the full helm test, not
+# this minimal smoke test.
+
+api:
+  enabled: false
+
+defaults:
+  volumes:
+  - name: ref-data
+    emptyDir: {}
+  - name: tmp
+    emptyDir: {}
+
+  volumeMounts:
+  - name: ref-data
+    mountPath: /ref
+  - name: tmp
+    mountPath: /tmp
+
+dragonfly:
+  extraArgs:
+  - --proactor_threads=1
+  - --maxmemory=256mb

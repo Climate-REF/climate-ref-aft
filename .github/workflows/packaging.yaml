@@ -26,9 +26,6 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - uses: actions/setup-python@v6
-    - name: Install jq
-      run: |
-        sudo apt-get install --yes jq
     - name: Install yq
       run: |
         pip install yq
@@ -58,6 +55,53 @@ jobs:
         registry_username: ${{ github.actor }}
         registry_password: ${{ secrets.GITHUB_TOKEN }}
         update_dependencies: 'true'
+
+  test-minimal:
+    name: Test Minimal Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [helm]
+    steps:
+    - uses: actions/checkout@v6
+    - name: Start minikube
+      uses: medyagh/setup-minikube@latest
+    - name: Set up Helm
+      uses: azure/setup-helm@v4.3.1
+    - name: Install Chart (minimal)
+      run: |
+        helm install test oci://ghcr.io/climate-ref/charts/climate-ref-aft \
+          --version=${{ needs.helm.outputs.generated-semver }} \
+          -f helm/ci/minimal-values.yaml
+    - name: Wait for pods
+      run: |
+        echo "Waiting for deployments to be ready..."
+        kubectl wait --for=condition=available deployment --all --timeout=120s
+        kubectl get pods
+    - name: Verify all pods healthy
+      run: |
+        # Check no pods are in CrashLoopBackOff or Error state
+        UNHEALTHY=$(kubectl get pods --no-headers | grep -E 'CrashLoopBackOff|Error|ImagePullBackOff' || true)
+        if [ -n "$UNHEALTHY" ]; then
+          echo "Unhealthy pods found:"
+          echo "$UNHEALTHY"
+          echo ""
+          echo "=== Pod logs ==="
+          for pod in $(echo "$UNHEALTHY" | awk '{print $1}'); do
+            echo "--- $pod ---"
+            kubectl logs "$pod" --tail=50 || true
+          done
+          exit 1
+        fi
+        echo "All pods healthy."
+    - name: Capture logs on failure
+      if: failure()
+      run: |
+        kubectl get pods
+        kubectl describe pods
+        for pod in $(kubectl get pods --no-headers | awk '{print $1}'); do
+          echo "=== $pod ==="
+          kubectl logs "$pod" --tail=100 || true
+        done
 
   test:
     name: Test Helm Deployment
@@ -131,6 +175,58 @@ jobs:
           --provider esmvaltool \
           --provider pmp \
           --provider ilamb
+    - name: Validate API can read compute results
+      shell: bash
+      run: |
+        set -euo pipefail
+        # ref-app eagerly imports providers from /ref/software at startup.
+        # Provider setup happens after the api Deployment is created, so the
+        # initial api pod may have crashed before /ref/software was populated.
+        # Force a rollout so a fresh pod starts against the now-populated /ref.
+        kubectl rollout restart deployment/test-climate-ref-aft-api
+        kubectl rollout status  deployment/test-climate-ref-aft-api --timeout=300s
+        kubectl wait --for=condition=Ready pod \
+          -l app.kubernetes.io/component=api --timeout=60s
+
+        # Drive requests through the orchestrator pod so kubectl exec
+        # propagates the python exit code reliably (kubectl run --rm -i can
+        # swallow non-zero exits). The orchestrator runs the climate-ref
+        # image which has Python + urllib.
+        API_BASE='http://test-climate-ref-aft-api/api/v1'
+        check() {
+          local path=$1 expect_nonempty=${2:-0}
+          kubectl exec deployment/test-climate-ref-aft-orchestrator -- \
+            python3 -c "
+        import json, sys, urllib.request
+        url = '${API_BASE}${path}'
+        with urllib.request.urlopen(url, timeout=30) as r:
+            body = r.read().decode()
+            assert r.status == 200, f'{url} -> {r.status}'
+        try:
+            d = json.loads(body)
+        except json.JSONDecodeError:
+            print('non-json body:', body[:200]); sys.exit(0)
+        if isinstance(d, list):
+            n = len(d)
+        else:
+            n = d.get('count', len(d.get('results') or d.get('data') or []))
+        print(f'{url} -> {n} item(s)')
+        if int('${expect_nonempty}'):
+            assert n > 0, f'expected non-empty result from {url}'
+        "
+        }
+
+        check /utils/health-check/
+        check /cmip7-aft-diagnostics/ 1
+        check /executions/ 1
+    - name: Capture API logs on failure
+      if: failure()
+      run: |
+        echo "=== API Logs ==="
+        kubectl logs -l app.kubernetes.io/component=api --tail=200 --all-containers=true || true
+        echo ""
+        echo "=== API describe ==="
+        kubectl describe deployment/test-climate-ref-aft-api || true
     - name: Capture Worker Logs on Failure
       if: failure()
       run: |
