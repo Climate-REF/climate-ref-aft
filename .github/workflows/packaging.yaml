@@ -210,8 +210,10 @@ jobs:
             print('non-json body:', body[:200]); sys.exit(0)
         if isinstance(d, list):
             n = len(d)
-        else:
+        elif isinstance(d, dict):
             n = d.get('count', len(d.get('results') or d.get('data') or []))
+        else:
+            n = 1 if d else 0
         print(f'{url} -> {n} item(s)')
         if int('${expect_nonempty}'):
             assert n > 0, f'expected non-empty result from {url}'
