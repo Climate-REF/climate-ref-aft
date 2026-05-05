@@ -123,6 +123,8 @@ jobs:
     - name: Start minikube
       uses: medyagh/setup-minikube@latest
       with:
+        cpus: max
+        memory: 12g
         mount-path: '${{ github.workspace }}/cache/ref-config:/cache/ref-config'
     - name: Set up Helm
       uses: azure/setup-helm@v4.3.1
