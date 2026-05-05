@@ -199,11 +199,20 @@ jobs:
           local path=$1 expect_nonempty=${2:-0}
           kubectl exec deployment/test-climate-ref-aft-orchestrator -- \
             python3 -c "
-        import json, sys, urllib.request
+        import json, sys, time, urllib.error, urllib.request
         url = '${API_BASE}${path}'
-        with urllib.request.urlopen(url, timeout=30) as r:
-            body = r.read().decode()
-            assert r.status == 200, f'{url} -> {r.status}'
+        last = None
+        for attempt in range(10):
+            try:
+                with urllib.request.urlopen(url, timeout=30) as r:
+                    body = r.read().decode()
+                    assert r.status == 200, f'{url} -> {r.status}'
+                break
+            except (urllib.error.URLError, ConnectionError) as e:
+                last = e
+                time.sleep(3)
+        else:
+            raise SystemExit(f'{url} unreachable after retries: {last}')
         try:
             d = json.loads(body)
         except json.JSONDecodeError:
