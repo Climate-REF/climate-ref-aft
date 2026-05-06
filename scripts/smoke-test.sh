@@ -89,51 +89,12 @@ fi
 # ref-app exposes read-only endpoints; we verify it can talk to the same
 # database that the workers wrote results into.
 API_URL="${REF_API_URL:-http://localhost:8000}"
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 echo "Validating API at $API_URL..."
 
-api_get() {
-    local path=$1
-    local label=$2
-    local out=$3
-    if curl -fsS "$API_URL$path" -o "$out"; then
-        echo -e "${GREEN}  $label OK${NC}"
-    else
-        echo -e "${RED}  $label failed${NC}"
-        return 1
-    fi
-}
-
-count_items() {
-    python3 -c '
-import json, sys
-d = json.load(open(sys.argv[1]))
-if isinstance(d, list):
-    print(len(d))
-else:
-    print(d.get("count", len(d.get("results") or d.get("data") or [])))
-' "$1"
-}
-
-api_get "/api/v1/utils/health-check/"     "health-check"    /tmp/ref-api-health.json || exit 1
-api_get "/api/v1/cmip7-aft-diagnostics/"  "AFT diagnostics" /tmp/ref-api-diags.json  || exit 1
-api_get "/api/v1/executions/"             "executions"      /tmp/ref-api-execs.json  || exit 1
-
-DIAG_COUNT=$(count_items /tmp/ref-api-diags.json)
-EXEC_COUNT=$(count_items /tmp/ref-api-execs.json)
-
-if [ "$DIAG_COUNT" -gt 0 ]; then
-    echo -e "${GREEN}  API returned $DIAG_COUNT AFT diagnostics${NC}"
-else
-    echo -e "${RED}  API returned no diagnostics${NC}"
-    exit 1
-fi
-
-if [ "$EXEC_COUNT" -gt 0 ]; then
-    echo -e "${GREEN}  API returned $EXEC_COUNT execution records${NC}"
-else
-    echo -e "${RED}  API returned no execution records — compute engine results are not visible to API${NC}"
-    exit 1
-fi
+python3 "$SCRIPT_DIR/lib/api_check.py" "$API_URL/api/v1/utils/health-check/"     || exit 1
+python3 "$SCRIPT_DIR/lib/api_check.py" "$API_URL/api/v1/cmip7-aft-diagnostics/" 1 || exit 1
+python3 "$SCRIPT_DIR/lib/api_check.py" "$API_URL/api/v1/executions/"            1 || exit 1
 
 echo -e "${GREEN}  All smoke tests passed!${NC}"
 echo "The docker stack is healthy and ready for use."

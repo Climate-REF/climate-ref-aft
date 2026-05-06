@@ -191,42 +191,14 @@ jobs:
           -l app.kubernetes.io/component=api --timeout=60s
 
         # Drive requests through the orchestrator pod so kubectl exec
-        # propagates the python exit code reliably (kubectl run --rm -i can
-        # swallow non-zero exits). The orchestrator runs the climate-ref
-        # image which has Python + urllib.
+        # propagates the python exit code reliably; stream the shared
+        # validation script into the pod's stdin so the logic stays in
+        # scripts/lib/api_check.py rather than duplicated inline.
         API_BASE='http://test-climate-ref-aft-api/api/v1'
         check() {
-          local path=$1 expect_nonempty=${2:-0}
-          kubectl exec deployment/test-climate-ref-aft-orchestrator -- \
-            python3 -c "
-        import json, sys, time, urllib.error, urllib.request
-        url = '${API_BASE}${path}'
-        last = None
-        for attempt in range(10):
-            try:
-                with urllib.request.urlopen(url, timeout=30) as r:
-                    body = r.read().decode()
-                    assert r.status == 200, f'{url} -> {r.status}'
-                break
-            except (urllib.error.URLError, ConnectionError) as e:
-                last = e
-                time.sleep(3)
-        else:
-            raise SystemExit(f'{url} unreachable after retries: {last}')
-        try:
-            d = json.loads(body)
-        except json.JSONDecodeError:
-            print('non-json body:', body[:200]); sys.exit(0)
-        if isinstance(d, list):
-            n = len(d)
-        elif isinstance(d, dict):
-            n = d.get('count', len(d.get('results') or d.get('data') or []))
-        else:
-            n = 1 if d else 0
-        print(f'{url} -> {n} item(s)')
-        if int('${expect_nonempty}'):
-            assert n > 0, f'expected non-empty result from {url}'
-        "
+          kubectl exec -i deployment/test-climate-ref-aft-orchestrator -- \
+            python3 - "${API_BASE}$1" "${2:-0}" \
+            < scripts/lib/api_check.py
         }
 
         check /utils/health-check/

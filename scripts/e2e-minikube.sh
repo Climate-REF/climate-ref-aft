@@ -105,28 +105,15 @@ kubectl wait --for=condition=Ready pod \
 
 # Drive requests through the orchestrator pod so kubectl exec propagates
 # the python exit code reliably and we don't need a separate curl image.
+# Stream scripts/lib/api_check.py into the pod so workflow + script share
+# the same validation logic.
 API_BASE="http://${RELEASE}-climate-ref-aft-api/api/v1"
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 api_check() {
     local path=$1 expect_nonempty=${2:-0}
-    kubectl exec deployment/${RELEASE}-climate-ref-aft-orchestrator -- \
-        python3 -c "
-import json, sys, urllib.request
-url = '${API_BASE}${path}'
-with urllib.request.urlopen(url, timeout=30) as r:
-    body = r.read().decode()
-    assert r.status == 200, f'{url} -> {r.status}'
-try:
-    d = json.loads(body)
-except json.JSONDecodeError:
-    print('non-json body:', body[:200]); sys.exit(0)
-if isinstance(d, list):
-    n = len(d)
-else:
-    n = d.get('count', len(d.get('results') or d.get('data') or []))
-print(f'{url} -> {n} item(s)')
-if int('${expect_nonempty}'):
-    assert n > 0, f'expected non-empty result from {url}'
-"
+    kubectl exec -i deployment/${RELEASE}-climate-ref-aft-orchestrator -- \
+        python3 - "${API_BASE}${path}" "$expect_nonempty" \
+        < "$SCRIPT_DIR/lib/api_check.py"
 }
 
 api_check /utils/health-check/        || fail "health-check failed"
