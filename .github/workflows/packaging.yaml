@@ -142,10 +142,9 @@ jobs:
         kubectl logs -l app.kubernetes.io/component=pmp
     - name: Run Migrations
       run: |
-        kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref config list
+        kubectl exec deployment/test-climate-ref-aft-orchestrator -- uv run ref db migrate
     - name: Initialize Providers
       run: |
-        # Imports ilamb3 which tries to create /home/app/.config/ilamb3 on import, no way to tell it to live somewhere else
         # First, set up all providers without fetching data (handles conda envs)
         kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref providers setup --skip-data --skip-validate
         # Fetch data for providers except esmvaltool (ERA5 data is too large for CI)
@@ -163,14 +162,17 @@ jobs:
 
     - name: Ingest Test Data (CMIP6)
       run: |
-        kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref -v datasets ingest --source-type cmip6 /ref/sample-data/CMIP6
+        kubectl exec deployment/test-climate-ref-aft-orchestrator -- \
+          ref -v datasets ingest --source-type cmip6 /ref/sample-data/CMIP6
     - name: Ingest Test Data (obs4mips)
       run: |
-        kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref -v datasets ingest --source-type obs4mips /ref/sample-data/obs4REF
+        kubectl exec deployment/test-climate-ref-aft-orchestrator -- \
+          ref -v datasets ingest --source-type obs4mips /ref/sample-data/obs4REF
     - name: Simple Solve
       run: |
         # Use a fixed set of fast diagnostics to keep CI times predictable
-        kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref -v solve --timeout 720 --one-per-provider \
+        kubectl exec deployment/test-climate-ref-aft-orchestrator -- \
+          ref -v solve --timeout 720 --one-per-provider \
           --diagnostic global-mean-timeseries \
           --diagnostic annual-cycle \
           --diagnostic gpp-wecann \
@@ -182,18 +184,15 @@ jobs:
       run: |
         set -euo pipefail
         # ref-app eagerly imports providers from /ref/software at startup.
-        # Provider setup happens after the api Deployment is created, so the
-        # initial api pod may have crashed before /ref/software was populated.
+        # Provider setup happens after the api Deployment is created,
+        # so the initial api pod may have crashed before /ref/software was populated.
         # Force a rollout so a fresh pod starts against the now-populated /ref.
         kubectl rollout restart deployment/test-climate-ref-aft-api
         kubectl rollout status  deployment/test-climate-ref-aft-api --timeout=300s
         kubectl wait --for=condition=Ready pod \
           -l app.kubernetes.io/component=api --timeout=60s
 
-        # Drive requests through the orchestrator pod so kubectl exec
-        # propagates the python exit code reliably; stream the shared
-        # validation script into the pod's stdin so the logic stays in
-        # scripts/lib/api_check.py rather than duplicated inline.
+        # Run scripts/lib/api_check.py via the orchestrator pod to check the API responses
         API_BASE='http://test-climate-ref-aft-api/api/v1'
         check() {
           kubectl exec -i deployment/test-climate-ref-aft-orchestrator -- \

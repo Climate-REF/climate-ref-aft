@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Validate a REF API endpoint.
 
-Fetches a URL, asserts HTTP 200, prints the item count, and (optionally)
-asserts a non-empty result. Retries transient failures so the rollout
-endpoint flap during CI does not produce false negatives.
+Fetches a URL, asserts HTTP 200, prints the item count, and (optionally) asserts a non-empty result.
+Retries transient failures so the rollout endpoint flap during CI does not produce false negatives.
 
 Usage:
     python3 api_check.py <url> [expect_nonempty]

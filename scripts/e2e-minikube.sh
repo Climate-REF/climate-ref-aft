@@ -94,10 +94,10 @@ kubectl exec deployment/${RELEASE}-climate-ref-aft-orchestrator -- \
     --provider ilamb
 
 log "Validating API endpoints..."
-# ref-app eagerly imports providers from /ref/software at startup. Provider
-# setup happens after the api Deployment is created, so the initial api pod
-# may have crashed before /ref/software was populated. Force a rollout so a
-# fresh pod starts against the now-populated /ref.
+# ref-app eagerly imports providers from /ref/software at startup. 
+# Provider setup happens after the api Deployment is created, 
+# so the initial api pod may have crashed before /ref/software was populated. 
+# Force a rollout so a fresh pod starts against the now-populated /ref.
 kubectl rollout restart deployment/${RELEASE}-climate-ref-aft-api
 kubectl rollout status  deployment/${RELEASE}-climate-ref-aft-api --timeout=300s
 kubectl wait --for=condition=Ready pod \
@@ -105,8 +105,6 @@ kubectl wait --for=condition=Ready pod \
 
 # Drive requests through the orchestrator pod so kubectl exec propagates
 # the python exit code reliably and we don't need a separate curl image.
-# Stream scripts/lib/api_check.py into the pod so workflow + script share
-# the same validation logic.
 API_BASE="http://${RELEASE}-climate-ref-aft-api/api/v1"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 api_check() {
