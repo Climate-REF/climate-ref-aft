@@ -40,8 +40,6 @@ api:
   podAnnotations: {}
   podLabels: {}
 
-  # Frontend image ships a non-numeric USER ("app"); set an explicit
-  # numeric runAsUser so kubelet can verify non-root.
   podSecurityContext:
     runAsUser: 1000
     runAsGroup: 1000
@@ -122,6 +120,8 @@ flower:
 
   podSecurityContext:
     runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
 
   securityContext:
     capabilities:
@@ -200,10 +200,6 @@ defaults:
       - ALL
     readOnlyRootFilesystem: true
     runAsNonRoot: true
-
-  service:
-    type: ClusterIP
-    port: 80
 
   resources: {}
 
