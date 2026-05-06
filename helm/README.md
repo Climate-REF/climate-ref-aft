@@ -108,6 +108,52 @@ Each provider worker listens to a specific Celery queue:
 
 ## Configuration
 
+### Required Volumes
+
+The chart sets environment variables (`HOME`, `REF_CONFIGURATION`, `REF_SOFTWARE_ROOT`) that point at filesystem paths the application expects to read and write.
+The default `securityContext.readOnlyRootFilesystem: true` makes those paths fail unless they are explicitly mounted.
+You must wire up the following volumes in your `values.yaml`, otherwise pods will crash on startup or during `ref providers setup`.
+
+| Path           | Used by                                | Why required                                                                                                                                  | Suggested backing                              |
+| -------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `/ref`         | API + all workers + migrate Job        | `REF_CONFIGURATION` and `REF_SOFTWARE_ROOT=/ref/software`. Workers populate it via `providers setup` (multi-GB conda envs); the API reads it. | Persistent volume (PVC or shared host mount).  |
+| `/tmp`         | API + all workers + migrate Job        | `HOME=/tmp`. Diagnostic libraries (intake-esgf, ilamb3) create config directories on import. Required because root FS is read-only.           | `emptyDir: {}` is sufficient.                  |
+
+#### Minimal working example
+
+```yaml
+api:
+  volumes:
+  - name: ref
+    persistentVolumeClaim:
+      claimName: ref-data
+  - name: tmp
+    emptyDir: {}
+  volumeMounts:
+  - name: ref
+    mountPath: /ref
+    readOnly: true            # API only reads
+  - name: tmp
+    mountPath: /tmp
+
+defaults:
+  volumes:
+  - name: ref
+    persistentVolumeClaim:
+      claimName: ref-data
+  - name: tmp
+    emptyDir: {}
+  volumeMounts:
+  - name: ref
+    mountPath: /ref           # workers must write here
+  - name: tmp
+    mountPath: /tmp
+```
+
+For ephemeral test deployments (no persistence across upgrades), `/ref` can also be an `emptyDir` — see [`helm/ci/minimal-values.yaml`](ci/minimal-values.yaml).
+
+This is the looser of two valid layouts: provider workers only need RO access to `/ref/software` and a per-pod scratch directory, but the chart does not yet expose that split. Tracked in [issue #8](https://github.com/Climate-REF/climate-ref-aft/issues/8).
+
 ### Global Parameters
 
 | Parameter          | Description                | Default |
@@ -125,7 +171,7 @@ The `api` section configures the ref-app (FastAPI + React frontend).
 | `api.enabled`          | Enable the API deployment | `true`                                     |
 | `api.replicaCount`     | Number of API replicas    | `1`                                        |
 | `api.image.repository` | API image repository      | `ghcr.io/climate-ref/climate-ref-frontend` |
-| `api.image.tag`        | API image tag             | `main`                                     |
+| `api.image.tag`        | API image tag             | `v0.2.3`                                   |
 | `api.image.pullPolicy` | Image pull policy         | `IfNotPresent`                             |
 | `api.service.type`     | Service type              | `ClusterIP`                                |
 | `api.service.port`     | Service port              | `80`                                       |
@@ -143,8 +189,7 @@ Set via `api.env`:
 | `ENVIRONMENT`       | Runtime environment            | `production`                      |
 | `LOG_LEVEL`         | Logging level                  | `INFO`                            |
 | `SECRET_KEY`        | Application secret key         | `changethis` (override in prod!)  |
-| `REF_DATABASE_URL`  | Database connection string     | `""` (required)                   |
-| `REF_CONFIGURATION` | Path to REF configuration      | `/app/.ref`                       |
+| `REF_CONFIGURATION` | Path to REF configuration      | `/ref`                            |
 
 #### API Ingress
 
@@ -219,7 +264,7 @@ These defaults apply to all providers unless overridden per-provider.
 | --------------------------- | ------------------------- | --------------------------------- |
 | `defaults.replicaCount`     | Number of worker replicas | `1`                               |
 | `defaults.image.repository` | Worker image repository   | `ghcr.io/climate-ref/climate-ref` |
-| `defaults.image.tag`        | Worker image tag          | `v0.11.1`                         |
+| `defaults.image.tag`        | Worker image tag          | `v0.13.1`                         |
 | `defaults.image.pullPolicy` | Image pull policy         | `IfNotPresent`                    |
 | `defaults.resources`        | Resource requests/limits  | `{}`                              |
 | `defaults.nodeSelector`     | Node selector             | `{}`                              |
@@ -255,6 +300,8 @@ Environment variables can be set via `defaults.env` or per-provider:
 | `CELERY_RESULT_BACKEND` | Redis result backend URL  | Auto-configured to Dragonfly                 |
 | `CELERY_ACCEPT_CONTENT` | Accepted content types    | `["json", "pickle"]`                         |
 | `REF_EXECUTOR`          | Executor class            | `climate_ref_celery.executor.CeleryExecutor` |
+| `REF_CONFIGURATION`     | Path to REF configuration | `/ref`                                       |
+| `REF_SOFTWARE_ROOT`     | Path to conda environments| `/ref/software`                              |
 | `HOME`                  | Home directory (writable) | `/tmp`                                       |
 
 ### Celery Reliability Settings
@@ -384,17 +431,8 @@ kubectl describe pod -l app.kubernetes.io/component=orchestrator
 
 ### HOME directory issues
 
-Some libraries (intake-esgf, ilamb3) require a writable HOME directory. The chart sets `HOME=/tmp` by default. Ensure `/tmp` is writable:
-
-```yaml
-defaults:
-  volumes:
-    - name: tmp
-      emptyDir: {}
-  volumeMounts:
-    - name: tmp
-      mountPath: /tmp
-```
+If you see crashes referencing `~/.config/ilamb3` or similar, `/tmp` is not writable.
+The chart sets `HOME=/tmp` by default; see [Required Volumes](#required-volumes) for the mount the chart expects.
 
 ### Connection to Dragonfly failing
 

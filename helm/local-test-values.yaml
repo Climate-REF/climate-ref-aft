@@ -59,7 +59,7 @@ api:
     ENVIRONMENT: local
     SECRET_KEY: local-test-secret
     REF_DATABASE_URL: sqlite:////tmp/ref.db
-    REF_CONFIGURATION: /app/.ref
+    REF_CONFIGURATION: /ref
   volumes:
   - name: tmp
     emptyDir: {}

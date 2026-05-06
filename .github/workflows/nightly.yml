@@ -16,7 +16,6 @@ permissions:
 
 jobs:
   test-latest:
-    if: github.repository == 'Climate-REF/climate-ref-aft'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -52,9 +51,8 @@ jobs:
           # These URLs will be updated once provider repos are created
           uv pip install \
             "climate-ref-esmvaltool @ git+https://github.com/Climate-REF/climate-ref.git@main#subdirectory=packages/climate-ref-esmvaltool" \
-            "climate-ref-pmp @ git+https://github.com/Climate-REF/climate-ref.git@main#subdirectory=packages/climate-ref-pmp"
-          # ILAMB - from standalone repo once available:
-          # uv pip install "climate-ref-ilamb @ git+https://github.com/Climate-REF/climate-ref-ilamb.git@main"
+            "climate-ref-pmp @ git+https://github.com/Climate-REF/climate-ref.git@main#subdirectory=packages/climate-ref-pmp" \
+            "climate-ref-ilamb @ git+https://github.com/Climate-REF/climate-ref.git@main#subdirectory=packages/climate-ref-ilamb"
 
       - name: Verify provider entry points
         run: |

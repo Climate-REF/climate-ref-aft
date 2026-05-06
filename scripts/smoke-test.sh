@@ -85,5 +85,16 @@ else
     exit 1
 fi
 
+# Validate the API can read the results produced by the compute engine.
+# ref-app exposes read-only endpoints; we verify it can talk to the same
+# database that the workers wrote results into.
+API_URL="${REF_API_URL:-http://localhost:8000}"
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+echo "Validating API at $API_URL..."
+
+python3 "$SCRIPT_DIR/lib/api_check.py" "$API_URL/api/v1/utils/health-check/"     || exit 1
+python3 "$SCRIPT_DIR/lib/api_check.py" "$API_URL/api/v1/cmip7-aft-diagnostics/" 1 || exit 1
+python3 "$SCRIPT_DIR/lib/api_check.py" "$API_URL/api/v1/executions/"            1 || exit 1
+
 echo -e "${GREEN}  All smoke tests passed!${NC}"
 echo "The docker stack is healthy and ready for use."

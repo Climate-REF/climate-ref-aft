@@ -1,4 +1,0 @@
-[tool.bumpversion]
-current_version = "2026.02.0"
-commit = true
-tag = false
