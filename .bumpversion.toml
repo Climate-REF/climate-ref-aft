@@ -20,8 +20,9 @@ replace = 'version = "{new_version}"'
 
 [[tool.bumpversion.files]]
 filename = "versions.toml"
-search = 'version = "{current_version}"'
+search = '^version = "{current_version}"'
 replace = 'version = "{new_version}"'
+regex = true
 
 [[tool.bumpversion.files]]
 filename = "versions.toml"
