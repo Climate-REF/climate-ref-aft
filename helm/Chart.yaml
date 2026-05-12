@@ -4,7 +4,7 @@ description: A Helm chart for deploying the Climate REF application for the CMIP
 type: application
 
 # Chart version tracks the AFT repo release version (SemVer)
-version: 0.2.0
+version: 0.2.1
 
 # Application version tracks the climate-ref core version
 appVersion: "0.14.0"

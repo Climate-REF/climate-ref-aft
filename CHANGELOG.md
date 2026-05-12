@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.2.1 (2026-05-12)
+
+### Bug Fixes
+
+- Run ``helm dependency build`` before ``helm package`` in the release workflow so chart dependencies (e.g. ``dragonfly``) are vendored at publish time, restoring the tag-triggered Helm release job. ([#12](https://github.com/Climate-REF/climate-ref-aft/pulls/12))
+
+
 ## climate-ref-aft 0.2.0 (2026-05-12)
 
 ### Features

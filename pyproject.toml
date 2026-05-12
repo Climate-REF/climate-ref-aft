@@ -1,6 +1,6 @@
 [project]
 name = "climate-ref-aft"
-version = "0.2.0"
+version = "0.2.1"
 description = "Rapid Evaluation Framework (REF) for the CMIP7 Assessment Fast Track (AFT)."
 readme = "README.md"
 authors = [
