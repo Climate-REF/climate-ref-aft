@@ -5,7 +5,7 @@
 # to install the correct combination for integration testing.
 
 [aft]
-version = "0.1.0"
+version = "0.2.0"
 
 [components]
 # Core framework (from Climate-REF/climate-ref monorepo)
@@ -20,6 +20,6 @@ climate-ref-ilamb = "0.14.0"
 
 [helm]
 # Chart version tracks the AFT repo version
-chart-version = "0.1.0"
+chart-version = "0.2.0"
 # App version tracks the climate-ref core version
 app-version = "0.14.0"
