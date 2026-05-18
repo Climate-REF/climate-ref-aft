@@ -2,6 +2,13 @@
 {{- $spec := merge (deepCopy $.Values.defaults) $spec -}}
 {{- $args := list "celery" "start-worker" "--loglevel" "DEBUG" -}}
 {{- if ne $provider "orchestrator" -}} {{- $args = concat $args (list "--provider" $provider) -}} {{- end -}}
+{{- /* Chart-managed esmvaltool config: auto-mount when providers.esmvaltool.config is set. */ -}}
+{{- $volumes := $spec.volumes | default list -}}
+{{- $volumeMounts := $spec.volumeMounts | default list -}}
+{{- if and (eq $provider "esmvaltool") $spec.config -}}
+  {{- $volumeMounts = append $volumeMounts (dict "name" "esmvaltool-config" "mountPath" "/etc/esmvaltool" "readOnly" true) -}}
+  {{- $volumes = append $volumes (dict "name" "esmvaltool-config" "configMap" (dict "name" (printf "%s-esmvaltool-config" (include "ref.fullname" $)))) -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -61,11 +68,11 @@ spec:
         resources:
           {{- toYaml . | nindent 12 }}
         {{- end }}
-        {{- with $spec.volumeMounts }}
+        {{- with $volumeMounts }}
         volumeMounts:
           {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with $spec.volumes }}
+      {{- with $volumes }}
       volumes:
         {{- toYaml . | nindent 6 }}
       {{- end }}
