@@ -234,6 +234,37 @@ defaults:
 #       CELERY_VISIBILITY_TIMEOUT: "1800"
 providers:
   orchestrator: {}
-  esmvaltool: {}
-  pmp: {}
-  ilamb: {}
+  esmvaltool:
+    # Esmvalcore configuration written to a ConfigMap and mounted at
+    # /etc/esmvaltool/config.yaml. Without this, esmvalcore auto-detects all
+    # available cores and runs unbounded dask workers, which routinely OOMs
+    # the host node when multiple diagnostics share a machine.
+    # See https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/
+    # Set `config: null` (or remove the key) to opt out and provide your own
+    # config via `volumes`/`volumeMounts` + ESMVALTOOL_CONFIG_DIR.
+    config:
+      max_parallel_tasks: 2
+      dask:
+        use: local_distributed
+        profiles:
+          local_distributed:
+            cluster:
+              type: distributed.LocalCluster
+              n_workers: 2
+              threads_per_worker: 2
+              memory_limit: 4GiB
+    env:
+      ESMVALTOOL_CONFIG_DIR: /etc/esmvaltool
+  pmp:
+    env:
+      # PMP recommends the synchronous Dask scheduler when running multiple
+      # executions on the same machine; the threaded scheduler crashes under
+      # excessive parallelism. See Climate-REF/climate-ref#437 and
+      # https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/
+      DASK_SCHEDULER: synchronous
+  ilamb:
+    env:
+      # ILAMB/IOMB diagnostics are restricted to the synchronous Dask
+      # scheduler upstream; setting it explicitly is harmless and matches
+      # the documented recommendation.
+      DASK_SCHEDULER: synchronous

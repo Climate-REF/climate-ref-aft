@@ -369,6 +369,43 @@ providers:
 If a task runs longer than the visibility timeout,
 Redis will redeliver it to another worker, causing duplicate execution. See the `celeryconf/base.py` docstring for details.
 
+### Memory Use Control
+
+Diagnostic providers can consume substantial memory if left unbounded.
+The chart ships sane defaults that follow the upstream
+[memory use guide](https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/):
+
+- **`providers.esmvaltool.config`** is rendered into a ConfigMap mounted at `/etc/esmvaltool/config.yaml`
+  with `ESMVALTOOL_CONFIG_DIR` wired up.
+  Without this, esmvalcore auto-detects all available cores and runs unbounded dask workers,
+  which routinely OOMs the host node when multiple diagnostics share a machine.
+  Override the block to tune `max_parallel_tasks`, dask worker counts, or `memory_limit`;
+  set `config: null` to opt out and supply your own config via volumes/volumeMounts.
+- **`providers.pmp.env.DASK_SCHEDULER`** and **`providers.ilamb.env.DASK_SCHEDULER`** default to `synchronous`.
+  PMP and ILAMB crash under the threaded scheduler when multiple executions share a host
+  (see [Climate-REF/climate-ref#437](https://github.com/Climate-REF/climate-ref/issues/437)).
+
+Override examples:
+
+```yaml
+providers:
+  esmvaltool:
+    config:
+      max_parallel_tasks: 4
+      dask:
+        use: local_distributed
+        profiles:
+          local_distributed:
+            cluster:
+              type: distributed.LocalCluster
+              n_workers: 4
+              threads_per_worker: 2
+              memory_limit: 8GiB
+  pmp:
+    env:
+      DASK_SCHEDULER: threads     # override default if you accept the risk
+```
+
 ### Persistent Volume Claims
 
 Create PVCs using the `createPVCs` map:
