@@ -7,6 +7,20 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.2.2 (2026-05-19)
+
+### Features
+
+- Ship memory-control defaults for diagnostic providers.
+  ``providers.esmvaltool.config`` now renders a chart-managed ConfigMap mounted at ``/etc/esmvaltool`` with ``ESMVALTOOL_CONFIG_DIR`` wired up, capping esmvalcore dask workers per the upstream `memory use guide <https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/>`_.
+  ``providers.pmp`` and ``providers.ilamb`` default ``DASK_SCHEDULER=synchronous`` to avoid the crashes tracked in Climate-REF/climate-ref#437.
+  Set ``providers.esmvaltool.config: null`` to opt out and supply your own configuration. ([#13](https://github.com/Climate-REF/climate-ref-aft/pulls/13))
+
+### Improvements
+
+- Bump pinned climate-ref core, celery, esmvaltool, pmp, and ilamb components and the worker container image (helm + docker-compose) from ``v0.14.0`` to ``v0.14.3``. ([#14](https://github.com/Climate-REF/climate-ref-aft/pulls/14))
+
+
 ## climate-ref-aft 0.2.1 (2026-05-12)
 
 ### Bug Fixes
