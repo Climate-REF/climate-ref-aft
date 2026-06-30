@@ -74,7 +74,7 @@ jobs:
         run: helm dependency build helm/
 
       - name: Lint chart
-        run: helm lint helm/
+        run: helm lint helm/ --set api.env.SECRET_KEY=lint-not-a-real-secret
 
   # Integration test on self-hosted runner (requires conda environments)
   integration:

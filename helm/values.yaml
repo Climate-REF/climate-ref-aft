@@ -14,7 +14,7 @@ api:
   env:
     ENVIRONMENT: production
     LOG_LEVEL: INFO
-    SECRET_KEY: changethis          # Must override in production
+    SECRET_KEY: ""                  # REQUIRED: override with a strong, unique value in production
     REF_CONFIGURATION: /ref
 
   ingress:

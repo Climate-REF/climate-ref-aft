@@ -1,0 +1,1 @@
+The Helm chart now refuses to render when api.env.ENVIRONMENT=production and api.env.SECRET_KEY is unset or left as the placeholder, preventing accidental production deploys with a known secret key.
