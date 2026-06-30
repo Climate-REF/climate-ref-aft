@@ -9,7 +9,6 @@ These tests fail the build if any of them drift apart.
 import tomllib
 from pathlib import Path
 
-import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -111,7 +110,6 @@ def test_frontend_tracked_in_versions_toml():
     assert _frontend_version(), "climate-ref-frontend missing from versions.toml [frontend]"
 
 
-@pytest.mark.skip(reason="frontend version reconciliation pending: helm v0.3.0 vs docker v0.2.3")
 def test_helm_api_image_matches_frontend():
     values = _load_yaml("helm/values.yaml")
     tag = values["api"]["image"]["tag"]
@@ -120,7 +118,6 @@ def test_helm_api_image_matches_frontend():
     )
 
 
-@pytest.mark.skip(reason="frontend version reconciliation pending: helm v0.3.0 vs docker v0.2.3")
 def test_docker_frontend_image_matches_frontend():
     services = _load_yaml("docker/docker-compose.yaml")["services"]
     image = services["ref-app"]["image"]
