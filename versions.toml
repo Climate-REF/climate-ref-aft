@@ -18,6 +18,11 @@ climate-ref-esmvaltool = "0.14.3"
 climate-ref-pmp = "0.14.3"
 climate-ref-ilamb = "0.14.3"
 
+[frontend]
+# API + frontend container image (Climate-REF/ref-app).
+# Deployed via helm api.image.tag and docker-compose ref-app.
+climate-ref-frontend = "0.3.0"
+
 [helm]
 # Chart version tracks the AFT repo version
 chart-version = "0.2.2"

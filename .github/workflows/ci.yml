@@ -26,6 +26,9 @@ jobs:
       - name: Ruff format
         run: uv run ruff format --check tests/ scripts/
 
+      - name: Version consistency
+        run: uv run pytest tests/test_version_consistency.py -v
+
   # Verify that all pinned components can be installed together
   install-pinned:
     runs-on: ubuntu-latest
