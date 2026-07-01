@@ -173,6 +173,16 @@ defaults:
 
   replicaCount: 1
 
+  # Number of Celery worker child processes per pod (passed as `--concurrency`).
+  # Leave unset to use Celery's default (one per CPU core). Set to 1 to pin a
+  # provider to a single worker process, e.g. for memory-heavy diagnostics that
+  # OOM when several run concurrently on the same node.
+  concurrency: null
+
+  # Additional arguments appended to the Celery worker after the `--` separator,
+  # for options not exposed as first-class values (e.g. ["--pool=solo"]).
+  extraArgs: []
+
   image:
     repository: ghcr.io/climate-ref/climate-ref
     pullPolicy: IfNotPresent
@@ -235,6 +245,12 @@ defaults:
 providers:
   orchestrator: {}
   esmvaltool:
+    # Pin the esmvaltool worker to a single Celery child process. Each esmvaltool
+    # execution already fans out via its own Dask cluster (see `config` below);
+    # running multiple Celery workers per pod multiplies that memory footprint and
+    # OOM-kills the node.
+    # See https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/
+    concurrency: 1
     # Esmvalcore configuration written to a ConfigMap and mounted at
     # /etc/esmvaltool/config.yaml. Without this, esmvalcore auto-detects all
     # available cores and runs unbounded dask workers, which routinely OOMs

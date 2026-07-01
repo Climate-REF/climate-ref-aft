@@ -2,6 +2,11 @@
 {{- $spec := merge (deepCopy $.Values.defaults) $spec -}}
 {{- $args := list "celery" "start-worker" "--loglevel" "DEBUG" -}}
 {{- if ne $provider "orchestrator" -}} {{- $args = concat $args (list "--provider" $provider) -}} {{- end -}}
+{{- /* Celery worker options passed after the `--` separator (e.g. --concurrency, --pool). */ -}}
+{{- $workerArgs := list -}}
+{{- if $spec.concurrency -}} {{- $workerArgs = append $workerArgs (printf "--concurrency=%v" $spec.concurrency) -}} {{- end -}}
+{{- with $spec.extraArgs -}} {{- $workerArgs = concat $workerArgs . -}} {{- end -}}
+{{- if $workerArgs -}} {{- $args = concat $args (list "--") $workerArgs -}} {{- end -}}
 {{- /* Chart-managed esmvaltool config: auto-mount when providers.esmvaltool.config is set. */ -}}
 {{- $volumes := $spec.volumes | default list -}}
 {{- $volumeMounts := $spec.volumeMounts | default list -}}
