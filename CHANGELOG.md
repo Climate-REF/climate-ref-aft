@@ -7,6 +7,29 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.3.0 (2026-07-01)
+
+### Features
+
+- Add first-class ``concurrency`` and free-form ``extraArgs`` values to provider workers, rendered as Celery worker options after the ``--`` separator, and pin the esmvaltool worker to ``concurrency: 1`` to prevent node OOM kills when its Dask cluster fans out. ([#16](https://github.com/Climate-REF/climate-ref-aft/pulls/16))
+
+### Improvements
+
+- Add a CI-gated test that enforces consistent component version pins across ``pyproject.toml``, ``versions.toml``, the Helm chart, and ``docker-compose.yaml``, and track the frontend image version in ``versions.toml``. ([#15](https://github.com/Climate-REF/climate-ref-aft/pulls/15))
+
+### Bug Fixes
+
+- The Helm chart now refuses to render when ``api.env.ENVIRONMENT=production`` and ``api.env.SECRET_KEY`` is unset or left as the placeholder, preventing accidental production deploys with a known secret key. ([#15](https://github.com/Climate-REF/climate-ref-aft/pulls/15))
+
+### Improved Documentation
+
+- Correct the stale Helm install version in the README quick-start (``0.1.0`` to ``0.2.2``). ([#15](https://github.com/Climate-REF/climate-ref-aft/pulls/15))
+
+### Trivial/Internal Changes
+
+- [#15](https://github.com/Climate-REF/climate-ref-aft/pulls/15)
+
+
 ## climate-ref-aft 0.2.2 (2026-05-19)
 
 ### Features
