@@ -49,3 +49,17 @@ Selector labels
 app.kubernetes.io/name: {{ include "ref.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+Fail the render if the API runs in production with an unset or placeholder
+SECRET_KEY. Operators must supply a strong, unique api.env.SECRET_KEY.
+*/}}
+{{- define "ref.validateApiSecret" -}}
+{{- if .Values.api.enabled -}}
+{{- $env := .Values.api.env -}}
+{{- $secret := toString (default "" $env.SECRET_KEY) -}}
+{{- if and (eq (toString (default "" $env.ENVIRONMENT)) "production") (or (eq $secret "") (eq $secret "changethis")) -}}
+{{- fail "api.env.SECRET_KEY is unset or the 'changethis' placeholder while api.env.ENVIRONMENT=production. Override api.env.SECRET_KEY with a strong, unique value (e.g. --set api.env.SECRET_KEY=...) before deploying." -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

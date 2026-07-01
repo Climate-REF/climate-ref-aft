@@ -26,6 +26,9 @@ jobs:
       - name: Ruff format
         run: uv run ruff format --check tests/ scripts/
 
+      - name: Version consistency
+        run: uv run pytest tests/test_version_consistency.py -v
+
   # Verify that all pinned components can be installed together
   install-pinned:
     runs-on: ubuntu-latest
@@ -71,7 +74,7 @@ jobs:
         run: helm dependency build helm/
 
       - name: Lint chart
-        run: helm lint helm/
+        run: helm lint helm/ --set api.env.SECRET_KEY=lint-not-a-real-secret
 
   # Integration test on self-hosted runner (requires conda environments)
   integration:

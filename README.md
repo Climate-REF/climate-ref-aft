@@ -60,7 +60,7 @@ wrote are visible to the API.
 helm install ref ./helm -f helm/local-test-values.yaml
 
 # Or from the OCI registry
-helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.1.0
+helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.2.2
 ```
 
 #### End-to-end on local minikube

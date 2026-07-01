@@ -115,7 +115,6 @@ def test_solve_cmip7_aft(
     assert df["successful"].any()
 
 
-@pytest.mark.slow
 def test_provider_discovery(config_cmip7_aft):
     """
     Verify that all AFT providers are discoverable via entry points.
