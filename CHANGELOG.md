@@ -7,6 +7,28 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.4.0 (2026-07-17)
+
+### Breaking Changes
+
+- The minimum supported Python version is now 3.12; Python 3.11 is no longer supported.
+  This follows climate-ref v0.15.0, which raised its own floor to 3.12.
+
+  climate-ref v0.15.0 also made the diagnostic input-dataset hash deterministic across pandas versions and platforms.
+  Because the underlying hash values change, existing databases will re-run each execution once on first use after upgrading. ([#17](https://github.com/Climate-REF/climate-ref-aft/pulls/17))
+
+### Improvements
+
+- Bump pinned climate-ref core, celery, esmvaltool, pmp, and ilamb components and the worker container image (helm + docker-compose) from ``v0.14.3`` to ``v0.16.2``. ([#17](https://github.com/Climate-REF/climate-ref-aft/pulls/17))
+- Bump the API + frontend image (`climate-ref-frontend`) from ``v0.3.0`` to ``v0.4.0``.
+  The v0.3.0 image bundled climate-ref 0.13.x, which could not read executions from a database written by the 0.16.x workers, so the API reported an empty executions list.
+  v0.4.0 bundles climate-ref 0.16.2, matching the pinned components. ([#19](https://github.com/Climate-REF/climate-ref-aft/pulls/19))
+
+### Trivial/Internal Changes
+
+- [#18](https://github.com/Climate-REF/climate-ref-aft/pulls/18)
+
+
 ## climate-ref-aft 0.3.0 (2026-07-01)
 
 ### Features
