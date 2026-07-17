@@ -189,8 +189,6 @@ jobs:
         # Force a rollout so a fresh pod starts against the now-populated /ref.
         kubectl rollout restart deployment/test-climate-ref-aft-api
         kubectl rollout status  deployment/test-climate-ref-aft-api --timeout=300s
-        kubectl wait --for=condition=Ready pod \
-          -l app.kubernetes.io/component=api --timeout=60s
 
         # Run scripts/lib/api_check.py via the orchestrator pod to check the API responses
         API_BASE='http://test-climate-ref-aft-api/api/v1'
