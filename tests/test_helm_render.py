@@ -279,3 +279,21 @@ def test_local_test_values_do_not_hardcode_the_broker_service():
     # release whose name is not the one baked into the string.
     docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}", values="helm/local-test-values.yaml")
     assert _provider_env(docs, "pmp")["CELERY_BROKER_URL"] == "redis://test-dragonfly:6379"
+
+
+def test_no_deployment_references_a_service_account_that_is_not_created():
+    docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}", "providers.pmp.serviceAccount.create=null")
+    created = {d["metadata"]["name"] for d in docs if d.get("kind") == "ServiceAccount"}
+    for deployment in [d for d in docs if d.get("kind") == "Deployment"]:
+        wanted = deployment["spec"]["template"]["spec"].get("serviceAccountName")
+        assert wanted is None or wanted in created, (
+            f"{deployment['metadata']['name']} wants ServiceAccount {wanted!r}, which is not created"
+        )
+
+
+def test_every_deployment_uses_its_own_service_account_by_default():
+    docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}")
+    created = {d["metadata"]["name"] for d in docs if d.get("kind") == "ServiceAccount"}
+    for deployment in [d for d in docs if d.get("kind") == "Deployment"]:
+        wanted = deployment["spec"]["template"]["spec"].get("serviceAccountName")
+        assert wanted in created, f"{deployment['metadata']['name']} wants missing SA {wanted!r}"

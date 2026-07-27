@@ -32,7 +32,11 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if and .Values.flower.serviceAccount .Values.flower.serviceAccount.name }}
+      serviceAccountName: {{ .Values.flower.serviceAccount.name }}
+      {{- else if and .Values.flower.serviceAccount .Values.flower.serviceAccount.create }}
       serviceAccountName: {{ include "ref.fullname" . }}-flower
+      {{- end }}
       {{- with .Values.flower.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
