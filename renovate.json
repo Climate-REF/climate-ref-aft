@@ -6,17 +6,15 @@
     ":semanticCommits"
   ],
   "description": [
-    "The pinned component versions are duplicated across six files so that the repo ships one tested, deployable combination.",
-    "tests/test_version_consistency.py fails the build if any of them drift apart, so every location has to move in the same PR.",
-    "pyproject.toml and uv.lock are handled by the built-in pep621 manager. The other five locations are matched by the custom managers below.",
-    "All of them are driven by PyPI, because a climate-ref version can exist on GitHub and ghcr before it reaches PyPI, and `uv lock` is what blocks in that case."
+    "The pinned component versions are duplicated across the repo and should be shipped as one tested, deployable combination.",
+    "All of them are driven by PyPI as that is the last to be deployed."
   ],
   "timezone": "Australia/Melbourne",
   "dependencyDashboardTitle": "Renovate Dependency Dashboard",
   "labels": ["dependencies"],
   "minimumReleaseAge": "3 days",
   "internalChecksFilter": "strict",
-  "prConcurrentLimit": 5,
+  "prConcurrentLimit": 10,
   "prHourlyLimit": 2,
   "lockFileMaintenance": {
     "enabled": true,
@@ -86,7 +84,7 @@
   ],
   "packageRules": [
     {
-      "description": "The worker image tag is driven from PyPI by the custom manager above, so ignore the built-in view of it",
+      "description": "The worker image tag is driven from PyPI, so ignore the built-in view of it",
       "matchManagers": ["docker-compose", "helm-values"],
       "matchPackageNames": ["ghcr.io/climate-ref/climate-ref"],
       "enabled": false
