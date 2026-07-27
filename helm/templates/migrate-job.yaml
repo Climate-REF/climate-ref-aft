@@ -45,6 +45,9 @@ spec:
         envFrom:
         - secretRef:
             name: {{ include "ref.fullname" . }}-migrate
+        {{- with .Values.defaults.extraEnvFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
         {{- with .Values.defaults.volumeMounts }}
         volumeMounts:
           {{- toYaml . | nindent 10 }}
