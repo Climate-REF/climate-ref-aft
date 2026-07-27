@@ -231,6 +231,9 @@ The chart refuses to render if the subchart is disabled and no URL is given.
 Flower also skips its broker wait init container in that mode,
 because there is no in-cluster Dragonfly Service to poll.
 
+Any values file that sets `CELERY_BROKER_URL` or `CELERY_RESULT_BACKEND` directly
+overrides this helper and will keep pointing at whatever it hardcodes.
+
 ### Flower Configuration
 
 | Parameter                       | Description                      | Default        |
