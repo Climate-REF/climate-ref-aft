@@ -7,6 +7,17 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.5.0 (2026-07-27)
+
+### Features
+
+- Added `api.extraEnvFrom` and `defaults.extraEnvFrom`, so the api, the workers and the db-migrate hook can take environment from an existing Secret or ConfigMap instead of from values. ([#22](https://github.com/Climate-REF/climate-ref-aft/pulls/22))
+
+### Bug Fixes
+
+- Per-provider Helm values now override the `defaults` block, so `replicaCount` and other non-empty defaults can be set per provider. The db-migrate hook also honours `defaults.nodeSelector`, `defaults.affinity` and `defaults.tolerations`. ([#21](https://github.com/Climate-REF/climate-ref-aft/pulls/21))
+
+
 ## climate-ref-aft 0.4.0 (2026-07-17)
 
 ### Breaking Changes
