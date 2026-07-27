@@ -1,0 +1,125 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits"
+  ],
+  "description": [
+    "The pinned component versions are duplicated across six files so that the repo ships one tested, deployable combination.",
+    "tests/test_version_consistency.py fails the build if any of them drift apart, so every location has to move in the same PR.",
+    "pyproject.toml and uv.lock are handled by the built-in pep621 manager. The other five locations are matched by the custom managers below.",
+    "All of them are driven by PyPI, because a climate-ref version can exist on GitHub and ghcr before it reaches PyPI, and `uv lock` is what blocks in that case."
+  ],
+  "timezone": "Australia/Melbourne",
+  "dependencyDashboardTitle": "Renovate Dependency Dashboard",
+  "labels": ["dependencies"],
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["dependencies", "security"]
+  },
+  "osvVulnerabilityAlerts": true,
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "climate-ref components in versions.toml",
+      "managerFilePatterns": ["/^versions\\.toml$/"],
+      "matchStrings": [
+        "(?<depName>climate-ref(?:-core|-celery|-esmvaltool|-pmp|-ilamb)?) = \"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "pypi",
+      "versioningTemplate": "pep440"
+    },
+    {
+      "customType": "regex",
+      "description": "helm.app-version in versions.toml tracks climate-ref",
+      "managerFilePatterns": ["/^versions\\.toml$/"],
+      "matchStrings": ["app-version = \"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "climate-ref",
+      "datasourceTemplate": "pypi",
+      "versioningTemplate": "pep440"
+    },
+    {
+      "customType": "regex",
+      "description": "Chart appVersion tracks climate-ref",
+      "managerFilePatterns": ["/^helm/Chart\\.yaml$/"],
+      "matchStrings": ["appVersion: \"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "climate-ref",
+      "datasourceTemplate": "pypi",
+      "versioningTemplate": "pep440"
+    },
+    {
+      "customType": "regex",
+      "description": "Worker image tag, and the default documented in the chart README",
+      "managerFilePatterns": [
+        "/^helm/values\\.yaml$/",
+        "/^helm/README\\.md$/",
+        "/^docker/docker-compose\\.yaml$/"
+      ],
+      "matchStrings": [
+        "repository: ghcr\\.io/climate-ref/climate-ref\\n\\s+pullPolicy: \\S+\\n\\s+tag: v(?<currentValue>\\S+)",
+        "image: ghcr\\.io/climate-ref/climate-ref:v(?<currentValue>\\S+)",
+        "`defaults\\.image\\.tag`[^|]*\\|[^|]*\\| +`v(?<currentValue>[^`]+)`"
+      ],
+      "depNameTemplate": "climate-ref",
+      "datasourceTemplate": "pypi",
+      "versioningTemplate": "pep440"
+    },
+    {
+      "customType": "regex",
+      "description": "ref-app version in versions.toml. Its two image tags are handled by the built-in managers",
+      "managerFilePatterns": ["/^versions\\.toml$/"],
+      "matchStrings": ["climate-ref-frontend = \"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "ghcr.io/climate-ref/climate-ref-frontend",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "The worker image tag is driven from PyPI by the custom manager above, so ignore the built-in view of it",
+      "matchManagers": ["docker-compose", "helm-values"],
+      "matchPackageNames": ["ghcr.io/climate-ref/climate-ref"],
+      "enabled": false
+    },
+    {
+      "description": "Tooling, actions and supporting services are not part of the deployed combination",
+      "matchPackageNames": ["!/^climate-ref/"],
+      "groupName": "supporting dependencies",
+      "schedule": ["before 9am on the first day of the month"]
+    },
+    {
+      "description": "One PR for the whole climate-ref component set",
+      "matchDepNames": [
+        "climate-ref",
+        "climate-ref-core",
+        "climate-ref-celery",
+        "climate-ref-esmvaltool",
+        "climate-ref-pmp",
+        "climate-ref-ilamb"
+      ],
+      "groupName": "climate-ref components",
+      "commitMessageTopic": "climate-ref",
+      "minimumReleaseAge": null,
+      "schedule": ["at any time"],
+      "prBodyNotes": [
+        "Add a changelog fragment (`changelog/<PR_NUMBER>.improvement.md`) before merging."
+      ]
+    },
+    {
+      "description": "The ref-app image bundles its own climate-ref, so keep it reviewable on its own",
+      "matchDepNames": ["ghcr.io/climate-ref/climate-ref-frontend"],
+      "groupName": "climate-ref-frontend",
+      "schedule": ["at any time"]
+    }
+  ]
+}
