@@ -77,14 +77,20 @@ api:
   tolerations: []
   affinity: {}
 
+# Celery broker to use when the bundled Dragonfly subchart is disabled.
+# Required when dragonfly.enabled is false, ignored otherwise.
+externalBroker:
+  url: ""
+
 dragonfly:
+  enabled: true
   storage:
     enabled: true
 
 flower:
   env:
-    CELERY_BROKER_URL: redis://{{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ .Values.dragonfly.service.port }}
-    CELERY_RESULT_BACKEND: redis://{{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ .Values.dragonfly.service.port }}
+    CELERY_BROKER_URL: '{{ include "ref.brokerUrl" . }}'
+    CELERY_RESULT_BACKEND: '{{ include "ref.brokerUrl" . }}'
 
   # Additional Celery configuration for Flower (rendered as celeryconfig.py)
   # Use this for settings that cannot be set via environment variables
@@ -159,8 +165,8 @@ createPVCs: {}
 
 defaults:
   env:
-    CELERY_BROKER_URL: redis://{{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ .Values.dragonfly.service.port }}
-    CELERY_RESULT_BACKEND: redis://{{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ .Values.dragonfly.service.port }}
+    CELERY_BROKER_URL: '{{ include "ref.brokerUrl" . }}'
+    CELERY_RESULT_BACKEND: '{{ include "ref.brokerUrl" . }}'
     CELERY_ACCEPT_CONTENT: |
       ["json", "pickle"]
     REF_EXECUTOR: climate_ref_celery.executor.CeleryExecutor

@@ -171,7 +171,7 @@ The `api` section configures the ref-app (FastAPI + React frontend).
 | `api.enabled`          | Enable the API deployment | `true`                                     |
 | `api.replicaCount`     | Number of API replicas    | `1`                                        |
 | `api.image.repository` | API image repository      | `ghcr.io/climate-ref/climate-ref-frontend` |
-| `api.image.tag`        | API image tag             | `v0.2.3`                                   |
+| `api.image.tag`        | API image tag             | `v0.4.0`                                   |
 | `api.image.pullPolicy` | Image pull policy         | `IfNotPresent`                             |
 | `api.service.type`     | Service type              | `ClusterIP`                                |
 | `api.service.port`     | Service port              | `80`                                       |
@@ -213,12 +213,28 @@ Set via `api.env`:
 
 ### Dragonfly (Redis) Configuration
 
-| Parameter                   | Description               | Default |
-| --------------------------- | ------------------------- | ------- |
-| `dragonfly.enabled`         | Enable Dragonfly subchart | `true`  |
-| `dragonfly.storage.enabled` | Enable persistent storage | `true`  |
+| Parameter                   | Description                                        | Default |
+| --------------------------- | -------------------------------------------------- | ------- |
+| `dragonfly.enabled`         | Deploy the bundled Dragonfly subchart              | `true`  |
+| `dragonfly.storage.enabled` | Enable persistent storage for Dragonfly            | `true`  |
+| `externalBroker.url`        | Celery broker URL when `dragonfly.enabled` is false | `""`    |
 
 See [Dragonfly Helm chart](https://github.com/dragonflydb/dragonfly/tree/main/contrib/charts/dragonfly) for all available options.
+
+To run against a broker you manage yourself, disable the subchart and supply its URL via `externalBroker.url`:
+
+```bash  
+helm install ref ./helm \
+  --set dragonfly.enabled=false \
+  --set externalBroker.url=redis://my-broker:6379
+```
+
+The chart refuses to render if the subchart is disabled and no URL is given.
+Flower also skips its broker wait init container in that mode,
+because there is no in-cluster Dragonfly Service to poll.
+
+Any values file that sets `CELERY_BROKER_URL` or `CELERY_RESULT_BACKEND` directly
+overrides this helper and will keep pointing at whatever it hardcodes.
 
 ### Flower Configuration
 
@@ -289,6 +305,11 @@ providers:
   pmp: {}
   ilamb: {}
 ```
+
+Provider values win over `defaults` key by key.
+Nested maps such as `env` are merged rather than replaced,
+so a provider only needs to name the keys it changes.
+List values such as `volumes` and `volumeMounts` are replaced wholesale.
 
 ### Environment Variables
 

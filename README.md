@@ -26,9 +26,9 @@ The AFT deployment brings together independently versioned packages:
 | `climate-ref-esmvaltool` | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | ESMValTool diagnostic provider                |
 | `climate-ref-pmp`        | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | PCMDI Metrics Package diagnostic provider     |
 | `climate-ref-ilamb`      | [Climate-REF/climate-ref](https://github.com/Climate-REF/climate-ref) | ILAMB diagnostic provider                     |
-| `climate-ref-frontend`   | [Climate-REF/ref-ap](https://github.com/Climate-REF/ref-app)          | API + Frontend                                |
+| `climate-ref-frontend`   | [Climate-REF/ref-app](https://github.com/Climate-REF/ref-app)         | API and bundled Frontend                      |
 
-Note: we intend to split the providers out into their own repositories in the coming weeks.
+Note: we may split the providers out into their own repositories in future.
 
 ## Versioning
 
@@ -60,7 +60,7 @@ wrote are visible to the API.
 helm install ref ./helm -f helm/local-test-values.yaml
 
 # Or from the OCI registry
-helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.2.2
+helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.5.0
 ```
 
 #### End-to-end on local minikube
@@ -86,12 +86,12 @@ uv run pytest tests/ -v --slow
 
 ## CI Workflows
 
-| Workflow | Trigger | What It Does |
-|----------|---------|--------------|
-| `ci.yml` | Push, PR | Lint, install pinned versions, run integration tests |
-| `packaging.yaml` | Push, PR | Helm chart OCI publish and minikube deployment test |
-| `nightly.yml` | Scheduled (daily) | Test against latest versions of all components |
-| `release.yml` | Tag push | Publish Helm chart, create GitHub release |
+| Workflow         | Trigger           | What It Does                                         |
+| ---------------- | ----------------- | ---------------------------------------------------- |
+| `ci.yml`         | Push, PR          | Lint, install pinned versions, run integration tests |
+| `packaging.yaml` | Push, PR          | Helm chart OCI publish and minikube deployment test  |
+| `nightly.yml`    | Scheduled (daily) | Test against latest versions of all components       |
+| `release.yml`    | Tag push          | Publish Helm chart, create GitHub release            |
 
 ## Release Process
 
@@ -123,7 +123,7 @@ Releases are created via the **Bump version** workflow in GitHub Actions:
 The workflow will:
 
 1. Compile changelog fragments via towncrier
-2. Bump the version in `pyproject.toml`, `versions.toml`, and `helm/Chart.yaml`
+2. Bump the version in `pyproject.toml`, `versions.toml`, `helm/Chart.yaml`, and the README install command
 3. Create a version commit and tag (e.g. `v0.2.0`)
 4. Push the commit and tag, which triggers `release.yml`
 
