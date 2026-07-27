@@ -260,3 +260,15 @@ def test_explicitly_nulling_dragonfly_enabled_fails_with_a_clear_message():
     assert result.returncode != 0
     assert "externalBroker.url" in result.stderr
     assert "nil pointer" not in result.stderr
+
+
+def test_broker_url_containing_an_apostrophe_survives_yaml_serialisation():
+    # toYaml quotes the template expression, then tpl injects the URL inside those quotes,
+    # so an unescaped apostrophe in a broker password would break out of the scalar.
+    url = "redis://:pa'ss@broker.example:6379/0"
+    docs = render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "dragonfly.enabled=false",
+        f"externalBroker.url={url}",
+    )
+    assert _provider_env(docs, "pmp")["CELERY_BROKER_URL"] == url
