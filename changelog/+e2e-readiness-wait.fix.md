@@ -1,1 +1,0 @@
-Fixes a flaky Helm end-to-end CI job that slept for a fixed 60 seconds before running migrations against the orchestrator. It now waits on the orchestrator's readiness condition, matching what `scripts/e2e-minikube.sh` already does.

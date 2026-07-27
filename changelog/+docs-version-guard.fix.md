@@ -1,1 +1,0 @@
-Fixes the stale versions in the README install command and the Helm chart parameter reference, and adds tests so documented versions can no longer drift from the pinned components. The README install version is now rewritten by `bump-my-version` on release.
