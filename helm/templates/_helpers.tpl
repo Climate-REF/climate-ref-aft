@@ -58,8 +58,9 @@ SECRET_KEY. Operators must supply a strong, unique api.env.SECRET_KEY.
 {{- if .Values.api.enabled -}}
 {{- $env := .Values.api.env -}}
 {{- $secret := toString (default "" $env.SECRET_KEY) -}}
-{{- if and (eq (toString (default "" $env.ENVIRONMENT)) "production") (or (eq $secret "") (eq $secret "changethis")) -}}
-{{- fail "api.env.SECRET_KEY is unset or the 'changethis' placeholder while api.env.ENVIRONMENT=production. Override api.env.SECRET_KEY with a strong, unique value (e.g. --set api.env.SECRET_KEY=...) before deploying." -}}
+{{- /* api.extraEnvFrom can carry SECRET_KEY, and this template cannot see inside it. */ -}}
+{{- if and (not .Values.api.extraEnvFrom) (eq (toString (default "" $env.ENVIRONMENT)) "production") (or (eq $secret "") (eq $secret "changethis")) -}}
+{{- fail "api.env.SECRET_KEY is unset or the 'changethis' placeholder while api.env.ENVIRONMENT=production. Set it, or supply it through api.extraEnvFrom, before deploying." -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

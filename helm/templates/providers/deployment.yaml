@@ -69,6 +69,9 @@ spec:
         envFrom:
         - secretRef:
             name: {{ include "ref.fullname" $ }}-{{ $provider }}
+        {{- with $spec.extraEnvFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
         {{- with $spec.resources }}
         resources:
           {{- toYaml . | nindent 12 }}
