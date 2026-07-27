@@ -65,6 +65,12 @@ api:
     limits:
       memory: 2Gi
 
+  # Additional envFrom sources, appended after the chart's own Secret,
+  # so they win on any key both define.
+  # This is how a value that must not sit in values.yaml, such as a database URL,
+  # reaches the container.
+  extraEnvFrom: []
+
   volumes: []
   volumeMounts: []
   nodeSelector: {}
@@ -225,6 +231,9 @@ defaults:
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
+
+  # As api.extraEnvFrom, applied to every worker and to the db-migrate hook.
+  extraEnvFrom: []
 
   volumes: []
   volumeMounts: []
