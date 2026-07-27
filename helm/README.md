@@ -223,9 +223,11 @@ See [Dragonfly Helm chart](https://github.com/dragonflydb/dragonfly/tree/main/co
 
 To run against a broker you manage yourself, disable the subchart and supply its URL via `externalBroker.url`:
 
-    helm install ref ./helm \
-      --set dragonfly.enabled=false \
-      --set externalBroker.url=redis://my-broker:6379
+```bash  
+helm install ref ./helm \
+  --set dragonfly.enabled=false \
+  --set externalBroker.url=redis://my-broker:6379
+```
 
 The chart refuses to render if the subchart is disabled and no URL is given.
 Flower also skips its broker wait init container in that mode,
