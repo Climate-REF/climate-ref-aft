@@ -1,5 +1,5 @@
 {{- range $provider, $spec := (omit .Values.providers "defaults") -}}
-{{- $spec := merge (deepCopy $.Values.defaults) $spec -}}
+{{- $spec := mergeOverwrite (deepCopy $.Values.defaults) $spec -}}
 {{- $args := list "celery" "start-worker" "--loglevel" "DEBUG" -}}
 {{- if ne $provider "orchestrator" -}} {{- $args = concat $args (list "--provider" $provider) -}} {{- end -}}
 {{- /* Celery worker options passed after the `--` separator (e.g. --concurrency, --pool). */ -}}

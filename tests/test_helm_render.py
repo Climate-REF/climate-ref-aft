@@ -154,3 +154,28 @@ def test_esmvaltool_config_is_rendered_and_mounted():
 def test_esmvaltool_config_can_be_opted_out():
     docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}", "providers.esmvaltool.config=null")
     assert not [d for d in docs if d["metadata"]["name"].endswith("-esmvaltool-config")]
+
+
+def test_per_provider_values_override_the_shared_defaults():
+    # helm/README.md promises that any default can be overridden per provider.
+    # Sprig `merge` gives precedence to its first argument,
+    # so the defaults used to win on every populated key.
+    docs = render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "providers.pmp.replicaCount=7",
+        "providers.pmp.image.tag=override-tag",
+        "providers.pmp.env.HOME=/override-home",
+    )
+    deployment = find(docs, "Deployment", "-pmp")
+    assert deployment["spec"]["replicas"] == 7
+    assert deployment["spec"]["template"]["spec"]["containers"][0]["image"].endswith(":override-tag")
+    assert _provider_env(docs, "pmp")["HOME"] == "/override-home"
+
+
+def test_overriding_one_provider_does_not_affect_the_others():
+    docs = render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "providers.pmp.replicaCount=7",
+    )
+    assert find(docs, "Deployment", "-ilamb")["spec"]["replicas"] == 1
+    assert find(docs, "Deployment", "-orchestrator")["spec"]["replicas"] == 1

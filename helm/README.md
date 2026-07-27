@@ -290,6 +290,11 @@ providers:
   ilamb: {}
 ```
 
+Provider values win over `defaults` key by key.
+Nested maps such as `env` are merged rather than replaced,
+so a provider only needs to name the keys it changes.
+List values such as `volumes` and `volumeMounts` are replaced wholesale.
+
 ### Environment Variables
 
 Environment variables can be set via `defaults.env` or per-provider:
