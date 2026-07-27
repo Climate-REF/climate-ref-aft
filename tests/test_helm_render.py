@@ -1,0 +1,156 @@
+"""Render the Helm chart and assert on the resulting Kubernetes objects.
+
+`helm lint` only checks that one values permutation parses.
+These tests render the chart the way an operator would install it
+and assert on the objects that come out,
+so that template regressions surface in seconds rather than in a minikube job.
+"""
+
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+import yaml
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CHART = REPO_ROOT / "helm"
+
+# helm/values.yaml defaults to ENVIRONMENT=production with an empty SECRET_KEY,
+# which the ref.validateApiSecret guard rejects.
+# Every render that is not testing the guard itself supplies a placeholder.
+PLACEHOLDER_SECRET = "render-test-not-a-real-secret"  # noqa: S105
+
+pytestmark = pytest.mark.skipif(shutil.which("helm") is None, reason="helm is not installed")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def chart_dependencies():
+    """Vendor the dragonfly subchart into helm/charts once per session."""
+    subprocess.run(  # noqa: S603
+        [shutil.which("helm"), "dependency", "build", str(CHART)],  # noqa: S607
+        check=True,
+        capture_output=True,
+    )
+
+
+def _render(*set_args: str, values: str | None = None) -> subprocess.CompletedProcess:
+    """Run `helm template` and return the completed process without raising."""
+    cmd = [shutil.which("helm"), "template", "test", str(CHART)]
+    if values is not None:
+        cmd += ["-f", str(REPO_ROOT / values)]
+    for arg in set_args:
+        cmd += ["--set", arg]
+    return subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
+
+
+def render(*set_args: str, values: str | None = None) -> list[dict]:
+    """Render the chart and return the Kubernetes objects it produced."""
+    result = _render(*set_args, values=values)
+    assert result.returncode == 0, f"helm template failed:\n{result.stderr}"
+    return [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+
+
+def find(docs: list[dict], kind: str, name: str) -> dict:
+    """Return the single object of `kind` whose metadata.name ends with `name`."""
+    matches = [d for d in docs if d.get("kind") == kind and d["metadata"]["name"].endswith(name)]
+    assert len(matches) == 1, f"expected exactly one {kind} ending in {name!r}, got {len(matches)}"
+    return matches[0]
+
+
+VALUES_FILES = [
+    None,
+    "helm/ci/minimal-values.yaml",
+    "helm/ci/gh-actions-values.yaml",
+    "helm/local-test-values.yaml",
+]
+
+
+@pytest.mark.parametrize("values", VALUES_FILES)
+def test_shipped_values_files_render(values):
+    docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}", values=values)
+    assert docs, f"{values or 'helm/values.yaml'} rendered no objects"
+
+
+PROVIDERS = ["orchestrator", "esmvaltool", "pmp", "ilamb"]
+
+
+def _worker_args(docs: list[dict], provider: str) -> list[str]:
+    deployment = find(docs, "Deployment", f"-{provider}")
+    return deployment["spec"]["template"]["spec"]["containers"][0]["args"]
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_each_provider_gets_a_worker_deployment(provider):
+    docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}")
+    args = _worker_args(docs, provider)
+    assert args[:4] == ["celery", "start-worker", "--loglevel", "DEBUG"]
+
+
+def test_orchestrator_worker_is_not_scoped_to_a_provider():
+    args = _worker_args(render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}"), "orchestrator")
+    assert "--provider" not in args
+
+
+@pytest.mark.parametrize("provider", ["esmvaltool", "pmp", "ilamb"])
+def test_diagnostic_workers_are_scoped_to_their_provider(provider):
+    args = _worker_args(render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}"), provider)
+    assert args[args.index("--provider") + 1] == provider
+
+
+def test_esmvaltool_worker_is_pinned_to_one_celery_child():
+    # Each esmvaltool execution fans out via its own Dask cluster.
+    # Extra Celery children multiply that footprint and OOM the node.
+    args = _worker_args(render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}"), "esmvaltool")
+    assert "--concurrency=1" in args
+
+
+def test_production_render_fails_without_a_secret_key():
+    # helm/values.yaml ships ENVIRONMENT=production and an empty SECRET_KEY on purpose,
+    # so a bare render must fail rather than deploy a guessable key.
+    result = _render()
+    assert result.returncode != 0
+    assert "SECRET_KEY" in result.stderr
+
+
+def test_non_production_render_does_not_require_a_secret_key():
+    docs = render("api.env.ENVIRONMENT=local")
+    assert docs
+
+
+def _provider_env(docs: list[dict], provider: str) -> dict:
+    return find(docs, "Secret", f"-{provider}")["stringData"]
+
+
+def test_provider_specific_env_does_not_leak_between_providers():
+    docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}")
+    assert "ESMVALTOOL_CONFIG_DIR" in _provider_env(docs, "esmvaltool")
+    assert "ESMVALTOOL_CONFIG_DIR" not in _provider_env(docs, "pmp")
+    assert _provider_env(docs, "pmp")["DASK_SCHEDULER"] == "synchronous"
+    assert _provider_env(docs, "ilamb")["DASK_SCHEDULER"] == "synchronous"
+    assert "DASK_SCHEDULER" not in _provider_env(docs, "orchestrator")
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_every_provider_inherits_the_shared_defaults(provider):
+    env = _provider_env(render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}"), provider)
+    assert env["HOME"] == "/tmp"  # noqa: S108
+    assert env["REF_CONFIGURATION"] == "/ref"
+    assert env["REF_EXECUTOR"] == "climate_ref_celery.executor.CeleryExecutor"
+
+
+def test_esmvaltool_config_is_rendered_and_mounted():
+    docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}")
+    configmap = find(docs, "ConfigMap", "-esmvaltool-config")
+    config = yaml.safe_load(configmap["data"]["config.yaml"])
+    assert config["max_parallel_tasks"] == 2
+
+    pod = find(docs, "Deployment", "-esmvaltool")["spec"]["template"]["spec"]
+    mounts = {m["name"]: m["mountPath"] for m in pod["containers"][0]["volumeMounts"]}
+    assert mounts["esmvaltool-config"] == "/etc/esmvaltool"
+    assert _provider_env(docs, "esmvaltool")["ESMVALTOOL_CONFIG_DIR"] == "/etc/esmvaltool"
+
+
+def test_esmvaltool_config_can_be_opted_out():
+    docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}", "providers.esmvaltool.config=null")
+    assert not [d for d in docs if d["metadata"]["name"].endswith("-esmvaltool-config")]
