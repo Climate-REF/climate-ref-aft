@@ -213,12 +213,23 @@ Set via `api.env`:
 
 ### Dragonfly (Redis) Configuration
 
-| Parameter                   | Description               | Default |
-| --------------------------- | ------------------------- | ------- |
-| `dragonfly.enabled`         | Enable Dragonfly subchart | `true`  |
-| `dragonfly.storage.enabled` | Enable persistent storage | `true`  |
+| Parameter                   | Description                                        | Default |
+| --------------------------- | -------------------------------------------------- | ------- |
+| `dragonfly.enabled`         | Deploy the bundled Dragonfly subchart              | `true`  |
+| `dragonfly.storage.enabled` | Enable persistent storage for Dragonfly            | `true`  |
+| `externalBroker.url`        | Celery broker URL when `dragonfly.enabled` is false | `""`    |
 
 See [Dragonfly Helm chart](https://github.com/dragonflydb/dragonfly/tree/main/contrib/charts/dragonfly) for all available options.
+
+To run against a broker you manage yourself, disable the subchart and supply its URL via `externalBroker.url`:
+
+    helm install ref ./helm \
+      --set dragonfly.enabled=false \
+      --set externalBroker.url=redis://my-broker:6379
+
+The chart refuses to render if the subchart is disabled and no URL is given.
+Flower also skips its broker wait init container in that mode,
+because there is no in-cluster Dragonfly Service to poll.
 
 ### Flower Configuration
 

@@ -63,3 +63,16 @@ SECRET_KEY. Operators must supply a strong, unique api.env.SECRET_KEY.
 {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Resolve the Celery broker URL.
+Uses the bundled Dragonfly subchart when it is enabled,
+otherwise the operator must point the chart at their own broker.
+*/}}
+{{- define "ref.brokerUrl" -}}
+{{- if .Values.dragonfly.enabled -}}
+redis://{{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ .Values.dragonfly.service.port }}
+{{- else -}}
+{{- required "dragonfly.enabled is false, so externalBroker.url must be set to your own Celery broker" .Values.externalBroker.url -}}
+{{- end -}}
+{{- end -}}

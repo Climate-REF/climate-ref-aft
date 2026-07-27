@@ -179,3 +179,44 @@ def test_overriding_one_provider_does_not_affect_the_others():
     )
     assert find(docs, "Deployment", "-ilamb")["spec"]["replicas"] == 1
     assert find(docs, "Deployment", "-orchestrator")["spec"]["replicas"] == 1
+
+
+def test_external_broker_is_used_when_dragonfly_is_disabled():
+    docs = render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "dragonfly.enabled=false",
+        "externalBroker.url=redis://broker.example:6379",
+    )
+    assert not [d for d in docs if d["metadata"]["name"].endswith("-dragonfly")]
+    for provider in PROVIDERS:
+        env = _provider_env(docs, provider)
+        assert env["CELERY_BROKER_URL"] == "redis://broker.example:6379"
+        assert env["CELERY_RESULT_BACKEND"] == "redis://broker.example:6379"
+
+
+def test_disabling_dragonfly_without_a_broker_url_fails_with_a_clear_message():
+    result = _render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}", "dragonfly.enabled=false")
+    assert result.returncode != 0
+    assert "externalBroker.url" in result.stderr
+
+
+def test_flower_only_waits_for_dragonfly_when_dragonfly_is_deployed():
+    with_dragonfly = find(render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}"), "Deployment", "-flower")
+    assert with_dragonfly["spec"]["template"]["spec"]["initContainers"]
+
+    without = find(
+        render(
+            f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+            "dragonfly.enabled=false",
+            "externalBroker.url=redis://broker.example:6379",
+        ),
+        "Deployment",
+        "-flower",
+    )
+    assert "initContainers" not in without["spec"]["template"]["spec"]
+
+
+def test_dragonfly_is_deployed_by_default():
+    docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}")
+    assert [d for d in docs if d["metadata"]["name"].endswith("-dragonfly")]
+    assert _provider_env(docs, "pmp")["CELERY_BROKER_URL"].startswith("redis://test-dragonfly")

@@ -37,6 +37,7 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.dragonfly.enabled }}
       initContainers:
       - name: wait-for-dragonfly
         image: busybox:1.37
@@ -50,6 +51,7 @@ spec:
             sleep 2
           done
           echo "Dragonfly is ready"
+      {{- end }}
       containers:
       - name: flower
         {{- with .Values.flower.securityContext }}
