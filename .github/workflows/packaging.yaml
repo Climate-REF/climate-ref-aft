@@ -139,11 +139,11 @@ jobs:
         kubectl wait deployment/test-climate-ref-aft-orchestrator \
           --for=condition=available --timeout=600s
 
-        kubectl get pods
+        kubectl get pods || true
         echo ""
-        kubectl describe pod -l app.kubernetes.io/component=pmp
+        kubectl describe pod -l app.kubernetes.io/component=pmp || true
         echo ""
-        kubectl logs -l app.kubernetes.io/component=pmp
+        kubectl logs -l app.kubernetes.io/component=pmp || true
     - name: Run Migrations
       run: |
         kubectl exec deployment/test-climate-ref-aft-orchestrator -- uv run ref db migrate
