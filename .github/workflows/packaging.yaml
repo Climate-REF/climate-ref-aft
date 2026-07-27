@@ -134,7 +134,11 @@ jobs:
           --version=${{ needs.helm.outputs.generated-semver }} \
           -f helm/ci/gh-actions-values.yaml
 
-        sleep 60
+        # Only the orchestrator is waited on. The api pod is expected to be
+        # unhealthy until providers are set up, so `deployment --all` would block.
+        kubectl wait deployment/test-climate-ref-aft-orchestrator \
+          --for=condition=available --timeout=600s
+
         kubectl get pods
         echo ""
         kubectl describe pod -l app.kubernetes.io/component=pmp
