@@ -69,11 +69,19 @@ SECRET_KEY. Operators must supply a strong, unique api.env.SECRET_KEY.
 Resolve the Celery broker URL.
 Uses the bundled Dragonfly subchart when it is enabled,
 otherwise the operator must point the chart at their own broker.
+An absent dragonfly.enabled means enabled, which is how Helm reads the subchart condition,
+so that `helm upgrade --reuse-values` from a release predating externalBroker still renders.
 */}}
 {{- define "ref.brokerUrl" -}}
-{{- if .Values.dragonfly.enabled -}}
-redis://{{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ .Values.dragonfly.service.port }}
+{{- $dragonfly := .Values.dragonfly | default dict -}}
+{{- $enabled := true -}}
+{{- if hasKey $dragonfly "enabled" -}}
+{{- $enabled = $dragonfly.enabled -}}
+{{- end -}}
+{{- if $enabled -}}
+redis://{{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ $dragonfly.service.port }}
 {{- else -}}
-{{- required "dragonfly.enabled is false, so externalBroker.url must be set to your own Celery broker" .Values.externalBroker.url -}}
+{{- $url := required "dragonfly.enabled is false, so externalBroker.url must be set to your own Celery broker" (.Values.externalBroker | default dict).url -}}
+{{- $url | replace "'" "''" -}}
 {{- end -}}
 {{- end -}}
