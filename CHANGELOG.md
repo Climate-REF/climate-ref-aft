@@ -7,6 +7,28 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.5.1 (2026-07-27)
+
+### Improvements
+
+- Adds a Helm render test suite so chart template regressions are caught in CI in seconds rather than by the minikube deployment job. ([#23](https://github.com/Climate-REF/climate-ref-aft/pulls/23))
+- Add a Renovate config so a new `climate-ref` release opens a bump PR covering all six pinned locations. ([#25](https://github.com/Climate-REF/climate-ref-aft/pulls/25))
+
+### Bug Fixes
+
+- Various clean ups and fixes, including fixing of stale versions in the README.md,
+   per-provider Helm values being silently ignored when the same key had a non-empty value under `defaults`,
+  `dragonfly.enabled=false` aborting the Helm render. ([#23](https://github.com/Climate-REF/climate-ref-aft/pulls/23))
+
+### Improved Documentation
+
+- Split the development instructions out of the README into a new `DEVELOPMENT.md`. ([#24](https://github.com/Climate-REF/climate-ref-aft/pulls/24))
+
+### Trivial/Internal Changes
+
+- [#26](https://github.com/Climate-REF/climate-ref-aft/pulls/26)
+
+
 ## climate-ref-aft 0.5.0 (2026-07-27)
 
 ### Features
