@@ -220,3 +220,43 @@ def test_dragonfly_is_deployed_by_default():
     docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}")
     assert [d for d in docs if d["metadata"]["name"].endswith("-dragonfly")]
     assert _provider_env(docs, "pmp")["CELERY_BROKER_URL"].startswith("redis://test-dragonfly")
+
+
+def test_absent_dragonfly_keys_still_render_with_the_bundled_broker(tmp_path):
+    # `helm upgrade --reuse-values` from a release predating externalBroker supplies
+    # neither dragonfly.enabled nor externalBroker, because Helm replaces the chart
+    # defaults with the old release's values. Strip both keys to reproduce that.
+    chart = tmp_path / "helm"
+    shutil.copytree(CHART, chart)
+    values = chart / "values.yaml"
+    text = values.read_text()
+    assert "\ndragonfly:\n  enabled: true\n" in text
+    text = text.replace("\ndragonfly:\n  enabled: true\n", "\ndragonfly:\n")
+    assert '\nexternalBroker:\n  url: ""\n' in text
+    text = text.replace('\nexternalBroker:\n  url: ""\n', "\n")
+    values.write_text(text)
+
+    result = subprocess.run(  # noqa: S603
+        [
+            shutil.which("helm"),
+            "template",
+            "test",
+            str(chart),
+            "--set",
+            f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    docs = [d for d in yaml.safe_load_all(result.stdout) if d]
+    assert _provider_env(docs, "pmp")["CELERY_BROKER_URL"] == "redis://test-dragonfly:6379"
+
+
+def test_explicitly_nulling_dragonfly_enabled_fails_with_a_clear_message():
+    # An explicit null reads as disabled. That is defensible, but it must produce
+    # the actionable message rather than a nil pointer dereference.
+    result = _render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}", "dragonfly.enabled=null")
+    assert result.returncode != 0
+    assert "externalBroker.url" in result.stderr
+    assert "nil pointer" not in result.stderr
