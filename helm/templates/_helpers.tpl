@@ -66,19 +66,31 @@ SECRET_KEY. Operators must supply a strong, unique api.env.SECRET_KEY.
 {{- end -}}
 
 {{/*
-Resolve the Celery broker URL.
-Uses the bundled Dragonfly subchart when it is enabled,
-otherwise the operator must point the chart at their own broker.
+Report whether the bundled Dragonfly subchart is deployed.
 An absent dragonfly.enabled means enabled, which is how Helm reads the subchart condition,
-so that `helm upgrade --reuse-values` from a release predating externalBroker still renders.
+so that `helm upgrade --reuse-values` from a release predating the key behaves unchanged.
+Returns a non-empty string when enabled and an empty string when not,
+so callers must use it via `include`, not by comparing to a boolean.
+*/}}
+{{- define "ref.dragonflyEnabled" -}}
+{{- $dragonfly := .Values.dragonfly | default dict -}}
+{{- if hasKey $dragonfly "enabled" -}}
+{{- if $dragonfly.enabled -}}true{{- end -}}
+{{- else -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+Resolve the Celery broker URL.
+Uses the bundled Dragonfly subchart when it is deployed,
+otherwise the operator must point the chart at their own broker via externalBroker.url.
+The URL is escaped for the single-quoted YAML scalar that toYaml emits,
+because tpl injects it after that quoting has already happened.
 */}}
 {{- define "ref.brokerUrl" -}}
 {{- $dragonfly := .Values.dragonfly | default dict -}}
-{{- $enabled := true -}}
-{{- if hasKey $dragonfly "enabled" -}}
-{{- $enabled = $dragonfly.enabled -}}
-{{- end -}}
-{{- if $enabled -}}
+{{- if include "ref.dragonflyEnabled" . -}}
 redis://{{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ $dragonfly.service.port }}
 {{- else -}}
 {{- $url := required "dragonfly.enabled is false, so externalBroker.url must be set to your own Celery broker" (.Values.externalBroker | default dict).url -}}

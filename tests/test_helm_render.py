@@ -297,3 +297,65 @@ def test_every_deployment_uses_its_own_service_account_by_default():
     for deployment in [d for d in docs if d.get("kind") == "Deployment"]:
         wanted = deployment["spec"]["template"]["spec"].get("serviceAccountName")
         assert wanted in created, f"{deployment['metadata']['name']} wants missing SA {wanted!r}"
+
+
+def test_flower_waits_for_dragonfly_when_the_enabled_key_is_absent(tmp_path):
+    # `ref.brokerUrl` treats an absent dragonfly.enabled as enabled, so the flower
+    # init container must agree. Otherwise flower starts before its broker is ready.
+    chart = tmp_path / "helm"
+    shutil.copytree(CHART, chart)
+    values = chart / "values.yaml"
+    text = values.read_text()
+    assert "\ndragonfly:\n  enabled: true\n" in text
+    text = text.replace("\ndragonfly:\n  enabled: true\n", "\ndragonfly:\n")
+    assert '\nexternalBroker:\n  url: ""\n' in text
+    text = text.replace('\nexternalBroker:\n  url: ""\n', "\n")
+    values.write_text(text)
+
+    result = subprocess.run(  # noqa: S603
+        [
+            shutil.which("helm"),
+            "template",
+            "test",
+            str(chart),
+            "--set",
+            f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    docs = [d for d in yaml.safe_load_all(result.stdout) if d]
+    flower = find(docs, "Deployment", "-flower")
+    assert flower["spec"]["template"]["spec"].get("initContainers"), (
+        "flower must still wait for the bundled broker when dragonfly.enabled is absent"
+    )
+    assert _provider_env(docs, "pmp")["CELERY_BROKER_URL"] == "redis://test-dragonfly:6379"
+
+
+def test_flower_skips_the_broker_wait_when_dragonfly_is_explicitly_disabled():
+    docs = render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "dragonfly.enabled=false",
+        "externalBroker.url=redis://ext:6379",
+    )
+    flower = find(docs, "Deployment", "-flower")
+    assert "initContainers" not in flower["spec"]["template"]["spec"]
+
+
+def test_a_custom_service_account_name_is_the_one_that_gets_created():
+    # The deployment templates prefer serviceAccount.name, so the ServiceAccount
+    # templates must create it under that same name or the pod cannot be admitted.
+    docs = render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "providers.pmp.serviceAccount.name=my-sa",
+        "api.serviceAccount.name=api-sa",
+        "flower.serviceAccount.name=flower-sa",
+    )
+    created = {d["metadata"]["name"] for d in docs if d.get("kind") == "ServiceAccount"}
+    assert {"my-sa", "api-sa", "flower-sa"} <= created
+    for deployment in [d for d in docs if d.get("kind") == "Deployment"]:
+        wanted = deployment["spec"]["template"]["spec"].get("serviceAccountName")
+        assert wanted is None or wanted in created, (
+            f"{deployment['metadata']['name']} wants ServiceAccount {wanted!r}, which is not created"
+        )
