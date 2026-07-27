@@ -33,3 +33,8 @@ replace = 'chart-version = "{new_version}"'
 filename = "helm/Chart.yaml"
 search = "version: {current_version}"
 replace = "version: {new_version}"
+
+[[tool.bumpversion.files]]
+filename = "README.md"
+search = "--version {current_version}"
+replace = "--version {new_version}"

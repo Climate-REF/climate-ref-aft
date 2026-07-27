@@ -60,7 +60,7 @@ wrote are visible to the API.
 helm install ref ./helm -f helm/local-test-values.yaml
 
 # Or from the OCI registry
-helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.2.2
+helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.4.0
 ```
 
 #### End-to-end on local minikube
@@ -123,7 +123,7 @@ Releases are created via the **Bump version** workflow in GitHub Actions:
 The workflow will:
 
 1. Compile changelog fragments via towncrier
-2. Bump the version in `pyproject.toml`, `versions.toml`, and `helm/Chart.yaml`
+2. Bump the version in `pyproject.toml`, `versions.toml`, `helm/Chart.yaml`, and the README install command
 3. Create a version commit and tag (e.g. `v0.2.0`)
 4. Push the commit and tag, which triggers `release.yml`
 

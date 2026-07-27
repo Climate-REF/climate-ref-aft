@@ -6,6 +6,7 @@ versions. Those pins are duplicated across ``pyproject.toml``, ``versions.toml``
 These tests fail the build if any of them drift apart.
 """
 
+import re
 import tomllib
 from pathlib import Path
 
@@ -124,4 +125,42 @@ def test_docker_frontend_image_matches_frontend():
     tag = image.rsplit(":", 1)[1]
     assert _strip_v(tag) == _frontend_version(), (
         f"docker ref-app image {image!r} != frontend {_frontend_version()!r}"
+    )
+
+
+def _read(rel: str) -> str:
+    return (REPO_ROOT / rel).read_text()
+
+
+def _aft_version() -> str:
+    return _load_toml("pyproject.toml")["project"]["version"]
+
+
+def _doc_default(rel: str, parameter: str) -> str:
+    """Return the Default column for `parameter` in a Markdown parameter table."""
+    pattern = rf"^\|\s*`{re.escape(parameter)}`\s*\|[^|]*\|\s*`([^`]+)`\s*\|"
+    match = re.search(pattern, _read(rel), flags=re.MULTILINE)
+    assert match, f"no parameter table row for {parameter!r} in {rel}"
+    return match.group(1)
+
+
+def test_readme_install_command_matches_chart_version():
+    match = re.search(r"climate-ref-aft --version (\S+)", _read("README.md"))
+    assert match, "README.md has no OCI helm install command with a --version flag"
+    assert match.group(1) == _aft_version(), (
+        f"README.md installs chart {match.group(1)!r} but this release is {_aft_version()!r}"
+    )
+
+
+def test_helm_readme_documents_the_real_api_image_tag():
+    documented = _doc_default("helm/README.md", "api.image.tag")
+    assert _strip_v(documented) == _frontend_version(), (
+        f"helm/README.md documents api.image.tag {documented!r} but frontend is {_frontend_version()!r}"
+    )
+
+
+def test_helm_readme_documents_the_real_worker_image_tag():
+    documented = _doc_default("helm/README.md", "defaults.image.tag")
+    assert _strip_v(documented) == _core_version(), (
+        f"helm/README.md documents defaults.image.tag {documented!r} but core is {_core_version()!r}"
     )
