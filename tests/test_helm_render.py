@@ -272,3 +272,10 @@ def test_broker_url_containing_an_apostrophe_survives_yaml_serialisation():
         f"externalBroker.url={url}",
     )
     assert _provider_env(docs, "pmp")["CELERY_BROKER_URL"] == url
+
+
+def test_local_test_values_do_not_hardcode_the_broker_service():
+    # A hardcoded broker URL silently defeats externalBroker and breaks any
+    # release whose name is not the one baked into the string.
+    docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}", values="helm/local-test-values.yaml")
+    assert _provider_env(docs, "pmp")["CELERY_BROKER_URL"] == "redis://test-dragonfly:6379"

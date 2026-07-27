@@ -12,8 +12,6 @@ defaults:
   # Set HOME to writable location to fix intake-esgf and ilamb3 config directory issues
   env:
     HOME: /tmp
-    CELERY_BROKER_URL: redis://climate-ref-test-dragonfly:6379
-    CELERY_RESULT_BACKEND: redis://climate-ref-test-dragonfly:6379
 
   volumes:
   - name: test-data
@@ -33,10 +31,6 @@ flower:
   # Fix runAsNonRoot issue with flower image
   securityContext:
     runAsNonRoot: false
-
-  env:
-    CELERY_BROKER_URL: redis://climate-ref-test-dragonfly:6379
-    CELERY_RESULT_BACKEND: redis://climate-ref-test-dragonfly:6379
 
 dragonfly:
   storage:
