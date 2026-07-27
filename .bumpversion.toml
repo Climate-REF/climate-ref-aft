@@ -36,5 +36,5 @@ replace = "version: {new_version}"
 
 [[tool.bumpversion.files]]
 filename = "README.md"
-search = "--version {current_version}"
-replace = "--version {new_version}"
+search = "climate-ref-aft --version {current_version}"
+replace = "climate-ref-aft --version {new_version}"

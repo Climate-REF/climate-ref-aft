@@ -164,3 +164,15 @@ def test_helm_readme_documents_the_real_worker_image_tag():
     assert _strip_v(documented) == _core_version(), (
         f"helm/README.md documents defaults.image.tag {documented!r} but core is {_core_version()!r}"
     )
+
+
+def test_bumpversion_readme_rule_is_scoped_to_the_chart_install_command():
+    # bump-my-version substitutes every match, so an unscoped "--version X"
+    # would also rewrite any other versioned command documented in the README.
+    entries = _load_toml(".bumpversion.toml")["tool"]["bumpversion"]["files"]
+    readme = [e for e in entries if e["filename"] == "README.md"]
+    assert readme, "no bump-my-version rule for README.md"
+    for entry in readme:
+        assert "climate-ref-aft" in entry["search"], (
+            f"README bump rule {entry['search']!r} is not scoped to the chart install command"
+        )
