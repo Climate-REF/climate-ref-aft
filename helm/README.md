@@ -406,11 +406,12 @@ The chart ships sane defaults that follow the upstream
 - **`providers.pmp.env.DASK_SCHEDULER`** and **`providers.ilamb.env.DASK_SCHEDULER`** default to `synchronous`.
   PMP and ILAMB crash under the threaded scheduler when multiple executions share a host
   (see [Climate-REF/climate-ref#437](https://github.com/Climate-REF/climate-ref/issues/437)).
-- **`defaults.env`** caps the OpenMP and BLAS thread pools (`OMP_NUM_THREADS` and friends) at 4
-  on every worker.
-  Without these, numpy/scipy size their thread pools off the host core count,
+- **`defaults.numericalThreads`** caps the OpenMP and BLAS thread pools
+  (`OMP_NUM_THREADS` and friends) at 4 on every worker.
+  Without a cap, numpy/scipy size their thread pools off the host core count,
   so parallel diagnostics oversubscribe the CPUs on large nodes.
-  Override per provider via `providers.<name>.env` to tune against your core count.
+  Override per provider via `providers.<name>.numericalThreads` to tune against your core count.
+  An individual variable set in `env` wins over the cap, and `null` leaves the backends unbounded.
 
 Override examples:
 
