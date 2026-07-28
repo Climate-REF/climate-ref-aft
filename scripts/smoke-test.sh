@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Smoke test for the Climate REF AFT docker stack.
 #
-# This script verifies that all services start correctly, data can be ingested,
+# Verifies that all services start, data can be ingested,
 # and the solver can execute diagnostics across all providers.
 #
 # Usage:
@@ -15,7 +15,21 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 
-echo "Starting smoke test for Climate REF AFT docker stack..."
+ok()   { echo -e "${GREEN}  $*${NC}"; }
+fail() { echo -e "${RED}  $*${NC}"; exit 1; }
+
+compose() { docker compose -f "$COMPOSE_FILE" "$@"; }
+
+# Run a `climate-ref` CLI command in a throwaway container, reporting either way.
+step() {
+    local description=$1
+    shift
+    if compose run --rm climate-ref "$@"; then
+        ok "$description successful"
+    else
+        fail "$description failed"
+    fi
+}
 
 check_service() {
     local service=$1
@@ -24,8 +38,8 @@ check_service() {
 
     echo "Checking service: $service"
     while [ $attempt -le $max_attempts ]; do
-        if docker compose -f "$COMPOSE_FILE" ps "$service" | grep -q "Up"; then
-            echo -e "${GREEN}  $service is up${NC}"
+        if compose ps "$service" | grep -q "Up"; then
+            ok "$service is up"
             return 0
         fi
         echo "Waiting for $service to be ready... (attempt $attempt/$max_attempts)"
@@ -33,68 +47,45 @@ check_service() {
         attempt=$((attempt + 1))
     done
 
-    echo -e "${RED}  $service failed to start${NC}"
-    return 1
+    fail "$service failed to start"
 }
 
-# Start the stack
 echo "Starting docker stack..."
-docker compose -f "$COMPOSE_FILE" up -d
+compose up -d
 
-# Check if all services are running
 echo "Checking service health..."
 services=("redis" "postgres" "ref-app" "flower" "climate-ref" "climate-ref-esmvaltool" "climate-ref-pmp" "climate-ref-ilamb")
 for service in "${services[@]}"; do
-    check_service "$service" || exit 1
+    check_service "$service"
 done
 
-# Sleep to allow services to stabilize
 echo "Sleeping to wait for services to stabilize..."
 sleep 5
 
-docker compose -f "$COMPOSE_FILE" ps
+compose ps
 
-# Fetch sample data
 echo "Fetching sample data..."
-docker compose -f "$COMPOSE_FILE" run --rm climate-ref datasets fetch-data --registry sample-data --output-directory /ref/sample-data
+compose run --rm climate-ref datasets fetch-data --registry sample-data --output-directory /ref/sample-data
 
-# Ingest sample data
-echo "Ingesting sample data..."
-if docker compose -f "$COMPOSE_FILE" run --rm climate-ref -v datasets ingest --source-type cmip6 /ref/sample-data/CMIP6; then
-    echo -e "${GREEN}  CMIP6 data ingestion successful${NC}"
-else
-    echo -e "${RED}  CMIP6 data ingestion failed${NC}"
-    exit 1
-fi
+step "CMIP6 data ingestion" -v datasets ingest --source-type cmip6 /ref/sample-data/CMIP6
+step "Obs4MIPs data ingestion" datasets ingest --source-type obs4mips /ref/sample-data/obs4REF
 
-if docker compose -f "$COMPOSE_FILE" run --rm climate-ref datasets ingest --source-type obs4mips /ref/sample-data/obs4REF; then
-    echo -e "${GREEN}  Obs4MIPs data ingestion successful${NC}"
-else
-    echo -e "${RED}  Obs4MIPs data ingestion failed${NC}"
-    exit 1
-fi
-
-# Run a simple solve with a fixed set of fast diagnostics to keep times predictable
-if docker compose -f "$COMPOSE_FILE" run --rm climate-ref -v solve --timeout 180 --one-per-provider \
+# A fixed set of fast diagnostics keeps run times predictable
+step "Solving" -v solve --timeout 180 --one-per-provider \
     --diagnostic global-mean-timeseries \
     --diagnostic annual-cycle \
-    --diagnostic gpp-wecann; then
-    echo -e "${GREEN}  Solving completed before timeout${NC}"
-else
-    echo -e "${RED}  Solving failed${NC}"
-    exit 1
-fi
+    --diagnostic gpp-wecann
 
 # Validate the API can read the results produced by the compute engine.
-# ref-app exposes read-only endpoints; we verify it can talk to the same
+# ref-app exposes read-only endpoints, so this checks it can talk to the same
 # database that the workers wrote results into.
 API_URL="${REF_API_URL:-http://localhost:8000}"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 echo "Validating API at $API_URL..."
 
-python3 "$SCRIPT_DIR/lib/api_check.py" "$API_URL/api/v1/utils/health-check/"     || exit 1
-python3 "$SCRIPT_DIR/lib/api_check.py" "$API_URL/api/v1/cmip7-aft-diagnostics/" 1 || exit 1
-python3 "$SCRIPT_DIR/lib/api_check.py" "$API_URL/api/v1/executions/"            1 || exit 1
+python3 "$SCRIPT_DIR/lib/api_check.py" "$API_URL/api/v1/utils/health-check/"
+python3 "$SCRIPT_DIR/lib/api_check.py" "$API_URL/api/v1/cmip7-aft-diagnostics/" 1
+python3 "$SCRIPT_DIR/lib/api_check.py" "$API_URL/api/v1/executions/" 1
 
-echo -e "${GREEN}  All smoke tests passed!${NC}"
+ok "All smoke tests passed!"
 echo "The docker stack is healthy and ready for use."

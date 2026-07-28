@@ -150,7 +150,7 @@ defaults:
     mountPath: /tmp
 ```
 
-For ephemeral test deployments (no persistence across upgrades), `/ref` can also be an `emptyDir` — see [`helm/ci/minimal-values.yaml`](ci/minimal-values.yaml).
+For ephemeral test deployments (no persistence across upgrades), `/ref` can also be an `emptyDir`, see [`helm/ci/minimal-values.yaml`](ci/minimal-values.yaml).
 
 This is the looser of two valid layouts: provider workers only need RO access to `/ref/software` and a per-pod scratch directory, but the chart does not yet expose that split. Tracked in [issue #8](https://github.com/Climate-REF/climate-ref-aft/issues/8).
 
@@ -223,7 +223,7 @@ See [Dragonfly Helm chart](https://github.com/dragonflydb/dragonfly/tree/main/co
 
 To run against a broker you manage yourself, disable the subchart and supply its URL via `externalBroker.url`:
 
-```bash  
+```bash
 helm install ref ./helm \
   --set dragonfly.enabled=false \
   --set externalBroker.url=redis://my-broker:6379

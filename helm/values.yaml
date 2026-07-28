@@ -276,7 +276,7 @@ defaults:
 providers:
   orchestrator: {}
   esmvaltool:
-    # Pin the esmvaltool worker to a single Celery child process. 
+    # Pin the esmvaltool worker to a single Celery child process.
     # Each esmvaltool execution already fans out via its own Dask cluster (see `config` below);
     # running multiple Celery workers per pod multiplies that memory footprint and OOM-kills the node.
     # See https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/
