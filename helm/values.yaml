@@ -95,7 +95,23 @@ flower:
   # Additional Celery configuration for Flower (rendered as celeryconfig.py)
   # Use this for settings that cannot be set via environment variables
   celeryConfig: |
-    accept_content = ['application/json', 'application/x-python-serialize']
+    import json
+
+    from kombu.serialization import register
+
+    # The Flower image does not have climate_ref_celery, so it cannot use the real codec.
+    # Flower only displays payloads, so it reads the wire form as plain JSON
+    # instead of rebuilding the REF objects.
+    register(
+        "ref-json",
+        encoder=json.dumps,
+        decoder=json.loads,
+        content_type="application/x-ref-json",
+        content_encoding="utf-8",
+    )
+
+    accept_content = ['application/json', 'application/x-ref-json', 'application/x-python-serialize']
+    result_accept_content = accept_content
 
   ingress:
     enabled: false
@@ -167,8 +183,6 @@ defaults:
   env:
     CELERY_BROKER_URL: '{{ include "ref.brokerUrl" . }}'
     CELERY_RESULT_BACKEND: '{{ include "ref.brokerUrl" . }}'
-    CELERY_ACCEPT_CONTENT: |
-      ["json", "pickle"]
     REF_EXECUTOR: climate_ref_celery.executor.CeleryExecutor
     REF_CONFIGURATION: /ref
     REF_SOFTWARE_ROOT: /ref/software
@@ -182,6 +196,11 @@ defaults:
     # CELERY_RESULT_EXPIRES: "172800"          # 48 hours
     # CELERY_WORKER_MAX_TASKS_PER_CHILD: "50"  # Recycle workers to prevent memory leaks
     # CELERY_WORKER_MAX_MEMORY_PER_CHILD: "2097152"  # 2 GB cap per worker process (in KB)
+    # CELERY_TASK_COMPRESSION: "gzip"          # Set to "" to send uncompressed task bodies
+    # CELERY_RESULT_COMPRESSION: "gzip"        # Set to "" to store uncompressed results
+    # Comma separated, and only needed while draining pickled messages from a previous release.
+    # Accepting pickle lets anything that can write to the broker run code in a worker.
+    # CELERY_ACCEPT_CONTENT: "json,ref-json,pickle"
 
   replicaCount: 1
 
