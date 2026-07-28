@@ -325,7 +325,8 @@ Two costs worth knowing before enabling it:
   so an outage longer than `periodSeconds` times `failureThreshold` restarts the fleet.
 - Each probe forks a Python process that imports `climate_ref_celery` inside the pod's memory limit.
 
-The probe cannot be enabled on a provider running `--pool=solo` via `extraArgs`, and the render fails if it is.
+The probe cannot be enabled on a provider running `--pool=solo` via `extraArgs`.
+The render fails if it is.
 The solo pool runs tasks in the main thread,
 so the worker cannot answer a control ping while an execution is in progress
 and every busy worker would be restarted.

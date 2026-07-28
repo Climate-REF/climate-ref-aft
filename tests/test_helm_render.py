@@ -168,6 +168,16 @@ def test_liveness_probe_is_rejected_with_the_solo_pool():
     assert "providers.pmp: livenessProbe cannot be used with the solo pool" in result.stderr
 
 
+def test_liveness_probe_guard_only_matches_the_pool_argument():
+    # An extra argument that merely contains "solo" is not the solo pool.
+    docs = render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "defaults.livenessProbe.enabled=true",
+        "providers.pmp.extraArgs={--queues=solo-tests}",
+    )
+    assert "livenessProbe" in _container(docs, "pmp")
+
+
 def test_liveness_probe_can_be_disabled_for_one_provider_only():
     # mergeOverwrite must not swallow a per-provider `false`.
     docs = render(

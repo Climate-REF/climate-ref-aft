@@ -83,7 +83,7 @@ spec:
         {{- if and $spec.livenessProbe $spec.livenessProbe.enabled }}
         {{- $probe := $spec.livenessProbe }}
         {{- /* The solo pool runs tasks in the main thread, so a busy worker cannot answer the ping. */}}
-        {{- if contains "solo" (join " " $spec.extraArgs) }}
+        {{- if regexMatch "(^| )(-P|--pool)(=| )solo( |$)" (join " " $spec.extraArgs) }}
         {{- fail (printf "providers.%s: livenessProbe cannot be used with the solo pool" $provider) }}
         {{- end }}
         livenessProbe:
