@@ -94,10 +94,24 @@ flower:
 
   # Additional Celery configuration for Flower (rendered as celeryconfig.py)
   # Use this for settings that cannot be set via environment variables
-  # Flower has no `ref-json` codec, so it cannot decode queued task bodies.
-  # It still shows tasks, because worker events are plain JSON.
   celeryConfig: |
-    accept_content = ['application/json', 'application/x-python-serialize']
+    import json
+
+    from kombu.serialization import register
+
+    # The Flower image does not have climate_ref_celery, so it cannot use the real codec.
+    # Flower only displays payloads, so it reads the wire form as plain JSON
+    # instead of rebuilding the REF objects.
+    register(
+        "ref-json",
+        encoder=json.dumps,
+        decoder=json.loads,
+        content_type="application/x-ref-json",
+        content_encoding="utf-8",
+    )
+
+    accept_content = ['application/json', 'application/x-ref-json', 'application/x-python-serialize']
+    result_accept_content = accept_content
 
   ingress:
     enabled: false

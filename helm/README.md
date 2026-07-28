@@ -251,6 +251,13 @@ overrides this helper and will keep pointing at whatever it hardcodes.
 | `flower.nodeSelector`           | Node selector                    | `{}`           |
 | `flower.tolerations`            | Tolerations                      | `[]`           |
 | `flower.affinity`               | Affinity rules                   | `{}`           |
+| `flower.celeryConfig`           | Rendered as `celeryconfig.py`    | See below      |
+
+`flower.celeryConfig` is mounted as a Python module and imported as Flower's Celery config.
+It registers a `ref-json` codec that decodes the wire form as plain JSON,
+because the `mher/flower` image does not have `climate_ref_celery` and so cannot use the real one.
+Without it the result API endpoint fails on a task body it is not allowed to decode.
+The task list is unaffected either way, because it is built from worker events, which are plain JSON.
 
 #### Flower Ingress
 
