@@ -174,6 +174,16 @@ defaults:
     REF_SOFTWARE_ROOT: /ref/software
     # Set HOME to writable location to fix intake-esgf and ilamb3 config directory creation
     HOME: /tmp
+    # Cap per-process thread pools in the numerical backends.
+    # Without these, numpy/scipy size their pools off the host core count,
+    # so parallel diagnostics oversubscribe the CPUs on large nodes.
+    # See https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/#limiting-openmp-and-blas-threads
+    OMP_NUM_THREADS: "4"
+    OPENBLAS_NUM_THREADS: "4"
+    MKL_NUM_THREADS: "4"
+    NUMEXPR_NUM_THREADS: "4"
+    VECLIB_MAXIMUM_THREADS: "4"
+    BLIS_NUM_THREADS: "4"
     # Celery reliability tuning (uncomment to override base.py defaults)
     # CELERY_TASK_TIME_LIMIT: "21600"          # Hard kill after 6 hours
     # CELERY_TASK_SOFT_TIME_LIMIT: "19800"     # Soft limit at 5.5 hours
@@ -265,7 +275,7 @@ providers:
     # running multiple Celery workers per pod multiplies that memory footprint and OOM-kills the node.
     # See https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/
     concurrency: 1
-    # Esmvalcore configuration written to a ConfigMap and mounted at /etc/esmvaltool/config.yaml, 
+    # E configuration written to a ConfigMap and mounted at /etc/esmvaltool/config.yaml, 
     # with ESMVALTOOL_CONFIG_DIR set on the worker container so esmvalcore reads it. 
     # Without this, esmvalcore auto-detects all available cores and causes OOMs.
     # Set `config: null` (or remove the key) to opt out and provide your own config

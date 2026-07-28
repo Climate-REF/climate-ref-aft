@@ -144,6 +144,22 @@ def test_every_provider_inherits_the_shared_defaults(provider):
     assert env["REF_EXECUTOR"] == "climate_ref_celery.executor.CeleryExecutor"
 
 
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_every_provider_caps_the_numerical_backend_threads(provider):
+    # Unbounded numpy/scipy thread pools scale with the host core count and
+    # oversubscribe the CPUs on large nodes. See the upstream memory use guide.
+    env = _provider_env(render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}"), provider)
+    for var in [
+        "OMP_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+        "BLIS_NUM_THREADS",
+    ]:
+        assert env[var] == "4"
+
+
 def test_esmvaltool_config_is_rendered_and_mounted():
     docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}")
     configmap = find(docs, "ConfigMap", "-esmvaltool-config")
