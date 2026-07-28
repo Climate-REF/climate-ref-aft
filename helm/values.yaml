@@ -191,17 +191,6 @@ defaults:
   # OOM when several run concurrently on the same node.
   concurrency: null
 
-  # Per-process thread cap for the numerical backends, exported as OMP_NUM_THREADS,
-  # OPENBLAS_NUM_THREADS, MKL_NUM_THREADS, NUMEXPR_NUM_THREADS, VECLIB_MAXIMUM_THREADS
-  # and BLIS_NUM_THREADS on every worker.
-  # Without a cap, numpy/scipy size their thread pools off the host core count,
-  # so parallel diagnostics oversubscribe the CPUs on large nodes.
-  # Keep concurrency * numericalThreads at or below the physical core count.
-  # See https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/#limiting-openmp-and-blas-threads
-  # Override per provider, set an individual variable via `env` to win over the cap,
-  # or set null to leave the backends unbounded.
-  numericalThreads: 4
-
   # Additional arguments appended to the Celery worker after the `--` separator,
   # for options not exposed as first-class values (e.g. ["--pool=solo"]).
   extraArgs: []
