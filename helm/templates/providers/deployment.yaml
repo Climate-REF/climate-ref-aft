@@ -86,6 +86,23 @@ spec:
         resources:
           {{- toYaml . | nindent 12 }}
         {{- end }}
+        {{- if and $spec.livenessProbe $spec.livenessProbe.enabled }}
+        {{- $probe := $spec.livenessProbe }}
+        {{- /* The solo pool runs tasks in the main thread, so a busy worker cannot answer the ping. */}}
+        {{- if regexMatch "(^| )(-P|--pool)(=| )solo( |$)" (join " " $spec.extraArgs) }}
+        {{- fail (printf "providers.%s: livenessProbe cannot be used with the solo pool" $provider) }}
+        {{- end }}
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - 'celery -A climate_ref_celery.app inspect ping -d celery@$(hostname) -t {{ $probe.pingTimeoutSeconds }}'
+          initialDelaySeconds: {{ $probe.initialDelaySeconds }}
+          periodSeconds: {{ $probe.periodSeconds }}
+          timeoutSeconds: {{ $probe.timeoutSeconds }}
+          failureThreshold: {{ $probe.failureThreshold }}
+        {{- end }}
         {{- with $volumeMounts }}
         volumeMounts:
           {{- toYaml . | nindent 8 }}

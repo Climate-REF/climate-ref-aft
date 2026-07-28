@@ -75,9 +75,13 @@ def test_shipped_values_files_render(values):
 PROVIDERS = ["orchestrator", "esmvaltool", "pmp", "ilamb"]
 
 
+def _container(docs: list[dict], provider: str) -> dict:
+    """Return the worker container of a provider's Deployment."""
+    return find(docs, "Deployment", f"-{provider}")["spec"]["template"]["spec"]["containers"][0]
+
+
 def _worker_args(docs: list[dict], provider: str) -> list[str]:
-    deployment = find(docs, "Deployment", f"-{provider}")
-    return deployment["spec"]["template"]["spec"]["containers"][0]["args"]
+    return _container(docs, provider)["args"]
 
 
 @pytest.mark.parametrize("provider", PROVIDERS)
@@ -103,6 +107,86 @@ def test_esmvaltool_worker_is_pinned_to_one_celery_child():
     # Extra Celery children multiply that footprint and OOM the node.
     args = _worker_args(render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}"), "esmvaltool")
     assert "--concurrency=1" in args
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_workers_have_no_liveness_probe_by_default(provider):
+    docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}")
+    assert "livenessProbe" not in _container(docs, provider)
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_liveness_probe_pings_the_workers_own_celery_node(provider):
+    # A wedged worker still passes a process check,
+    # so the probe has to exercise the consumer loop of this pod specifically.
+    docs = render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "defaults.livenessProbe.enabled=true",
+        "defaults.livenessProbe.pingTimeoutSeconds=17",
+    )
+    command = _container(docs, provider)["livenessProbe"]["exec"]["command"][-1]
+    assert "inspect ping" in command
+    assert "-d celery@$(hostname)" in command
+    assert "-t 17" in command
+
+
+def test_liveness_probe_timings_are_configurable():
+    docs = render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "defaults.livenessProbe.enabled=true",
+        "defaults.livenessProbe.initialDelaySeconds=11",
+        "defaults.livenessProbe.periodSeconds=22",
+        "defaults.livenessProbe.timeoutSeconds=33",
+        "defaults.livenessProbe.failureThreshold=44",
+    )
+    probe = _container(docs, "pmp")["livenessProbe"]
+    assert probe["initialDelaySeconds"] == 11
+    assert probe["periodSeconds"] == 22
+    assert probe["timeoutSeconds"] == 33
+    assert probe["failureThreshold"] == 44
+
+
+def test_liveness_probe_can_be_enabled_for_one_provider_only():
+    docs = render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "providers.ilamb.livenessProbe.enabled=true",
+        "providers.ilamb.livenessProbe.periodSeconds=60",
+    )
+    assert _container(docs, "ilamb")["livenessProbe"]["periodSeconds"] == 60
+    assert "livenessProbe" not in _container(docs, "pmp")
+
+
+def test_liveness_probe_is_rejected_with_the_solo_pool():
+    # The solo pool runs tasks in the main thread, so a busy worker cannot answer the ping
+    # and every busy worker would be restarted.
+    result = _render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "defaults.livenessProbe.enabled=true",
+        "providers.pmp.extraArgs={--pool=solo}",
+    )
+    assert result.returncode != 0
+    assert "providers.pmp: livenessProbe cannot be used with the solo pool" in result.stderr
+
+
+def test_liveness_probe_guard_only_matches_the_pool_argument():
+    # An extra argument that merely contains "solo" is not the solo pool.
+    docs = render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "defaults.livenessProbe.enabled=true",
+        "providers.pmp.extraArgs={--queues=solo-tests}",
+    )
+    assert "livenessProbe" in _container(docs, "pmp")
+
+
+def test_liveness_probe_can_be_disabled_for_one_provider_only():
+    # mergeOverwrite must not swallow a per-provider `false`.
+    docs = render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "defaults.livenessProbe.enabled=true",
+        "providers.ilamb.livenessProbe.enabled=false",
+    )
+    assert "livenessProbe" not in _container(docs, "ilamb")
+    assert "livenessProbe" in _container(docs, "pmp")
 
 
 def test_production_render_fails_without_a_secret_key():

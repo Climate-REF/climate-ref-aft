@@ -289,6 +289,62 @@ These defaults apply to all providers unless overridden per-provider.
 | `defaults.volumes`          | Additional volumes        | `[]`                              |
 | `defaults.volumeMounts`     | Additional volume mounts  | `[]`                              |
 
+### Worker Liveness Probe
+
+A Celery worker can wedge: it stops consuming and stops answering control pings,
+but the process stays up and the pod keeps reporting Ready.
+The queue then backs up with nothing to alert on.
+
+`defaults.livenessProbe` adds a probe that runs `celery inspect ping` against the pod's own worker node,
+so it exercises the consumer loop rather than the process.
+
+The probe still answers while the worker is busy.
+Under the default prefork pool, diagnostics run in forked children
+and the main process keeps serving control commands.
+It is off by default because a failing probe restarts the pod and destroys the execution it was running,
+so the timings have to suit how long a provider's diagnostics take.
+
+| Parameter                                    | Description                             | Default |
+| -------------------------------------------- | --------------------------------------- | ------- |
+| `defaults.livenessProbe.enabled`             | Enable the probe                        | `false` |
+| `defaults.livenessProbe.initialDelaySeconds` | Grace period for worker startup         | `600`   |
+| `defaults.livenessProbe.periodSeconds`       | Interval between pings                  | `120`   |
+| `defaults.livenessProbe.timeoutSeconds`      | Kubelet timeout for the probe           | `60`    |
+| `defaults.livenessProbe.failureThreshold`    | Failures tolerated before a restart     | `3`     |
+| `defaults.livenessProbe.pingTimeoutSeconds`  | Timeout passed to `celery inspect ping` | `30`    |
+
+The defaults allow roughly 6 minutes wedged before a restart.
+Keep `pingTimeoutSeconds` below `timeoutSeconds`,
+so celery reports the failure itself before the kubelet kills the probe.
+Raise `initialDelaySeconds` if a worker takes longer than 10 minutes to boot,
+because the probe restarts a pod that is still starting up.
+
+Two costs worth knowing before enabling it:
+
+- A broker outage fails the ping on every worker at once,
+  so an outage longer than `periodSeconds` times `failureThreshold` restarts the fleet.
+- Each probe forks a Python process that imports `climate_ref_celery` inside the pod's memory limit.
+
+The probe cannot be enabled on a provider running `--pool=solo` via `extraArgs`.
+The render fails if it is.
+The solo pool runs tasks in the main thread,
+so the worker cannot answer a control ping while an execution is in progress
+and every busy worker would be restarted.
+`--pool=threads` works, but replies can be slow when the tasks are CPU bound.
+
+Enable it everywhere, or for a single provider:
+
+```yaml
+defaults:
+  livenessProbe:
+    enabled: true
+
+providers:
+  ilamb:
+    livenessProbe:
+      periodSeconds: 60
+```
+
 ### Provider-Specific Overrides
 
 Each provider under `providers.*` can override any default setting:
