@@ -199,7 +199,8 @@ defaults:
   # so a worker that has stopped consuming is restarted rather than left reporting Ready.
   # A failing probe destroys the execution the worker was running,
   # so the timings must suit how long this provider's diagnostics take.
-  # Do not enable this alongside `--pool=solo`, which blocks the control loop while a task runs.
+  # Cannot be combined with `--pool=solo`, which blocks the control loop while a task runs,
+  # so every busy worker would be restarted.
   livenessProbe:
     enabled: false
     initialDelaySeconds: 600
@@ -207,8 +208,7 @@ defaults:
     timeoutSeconds: 60
     failureThreshold: 3
     # Timeout passed to `celery inspect ping`.
-    # Keep it below timeoutSeconds so celery reports the failure itself
-    # before the kubelet kills the probe.
+    # Keep it below timeoutSeconds so celery reports the failure itself before the kubelet kills the probe.
     pingTimeoutSeconds: 30
 
   image:

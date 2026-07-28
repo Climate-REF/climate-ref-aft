@@ -156,6 +156,18 @@ def test_liveness_probe_can_be_enabled_for_one_provider_only():
     assert "livenessProbe" not in _container(docs, "pmp")
 
 
+def test_liveness_probe_is_rejected_with_the_solo_pool():
+    # The solo pool runs tasks in the main thread, so a busy worker cannot answer the ping
+    # and every busy worker would be restarted.
+    result = _render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "defaults.livenessProbe.enabled=true",
+        "providers.pmp.extraArgs={--pool=solo}",
+    )
+    assert result.returncode != 0
+    assert "providers.pmp: livenessProbe cannot be used with the solo pool" in result.stderr
+
+
 def test_liveness_probe_can_be_disabled_for_one_provider_only():
     # mergeOverwrite must not swallow a per-provider `false`.
     docs = render(
