@@ -396,16 +396,16 @@ Diagnostic providers can consume substantial memory if left unbounded.
 The chart ships sane defaults that follow the upstream
 [memory use guide](https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/):
 
-- **`providers.esmvaltool.config`** is rendered into a ConfigMap mounted at `/etc/esmvaltool/config.yaml`
-  with `ESMVALTOOL_CONFIG_DIR` wired up.
+- **`providers.esmvaltool.config`** is rendered into a ConfigMap mounted at `/etc/esmvaltool/config.yaml`,
+  with `ESMVALTOOL_CONFIG_DIR` set on the worker container so esmvalcore reads it.
   Without this, esmvalcore auto-detects all available cores and runs unbounded dask workers,
   which routinely OOMs the host node when multiple diagnostics share a machine.
   Override the block to tune `max_parallel_tasks`, dask worker counts, or `memory_limit`;
-  set `config: null` to opt out and supply your own config via volumes/volumeMounts.
+  set `config: null` to opt out and supply your own config via volumes/volumeMounts
+  plus `ESMVALTOOL_CONFIG_DIR` in `env`.
 - **`providers.pmp.env.DASK_SCHEDULER`** and **`providers.ilamb.env.DASK_SCHEDULER`** default to `synchronous`.
   PMP and ILAMB crash under the threaded scheduler when multiple executions share a host
   (see [Climate-REF/climate-ref#437](https://github.com/Climate-REF/climate-ref/issues/437)).
-
 Override examples:
 
 ```yaml
