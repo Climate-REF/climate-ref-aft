@@ -7,6 +7,29 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.5.2 (2026-07-28)
+
+### Features
+
+- Adds an opt-in `livenessProbe` for the provider workers, configured via `defaults.livenessProbe`.
+  The probe runs `celery inspect ping` against the pod's own worker node,
+  so it catches a worker that has stopped consuming while its process stays up and the pod still reports Ready.
+  It is off by default because a failing probe restarts the pod and destroys the execution it was running,
+  so the timings have to suit how long a provider's diagnostics take. ([#30](https://github.com/Climate-REF/climate-ref-aft/pulls/30))
+
+### Bug Fixes
+
+- Sets `ESMVALTOOL_CONFIG_DIR` in the esmvaltool worker deployment whenever the chart mounts the managed config, instead of relying on a `values.yaml` env default that an override could drop.
+  This guarantees esmvalcore reads the mounted memory caps, because it silently ignores a config directory it is not pointed at. ([#29](https://github.com/Climate-REF/climate-ref-aft/pulls/29))
+- Removes the `CELERY_ACCEPT_CONTENT` default from `defaults.env`.
+
+  The chart set it to the JSON array string `["json", "pickle"]`, which the worker now parses as a comma separated list.
+  That yields the content type `["json"`, and the worker exits at startup with `SerializerNotInstalled`.
+  The image owns the default now, which is `json,ref-json`.
+
+  Registers a display-only `ref-json` codec in Flower's `celeryconfig.py`, so its result API can decode a task body. ([#32](https://github.com/Climate-REF/climate-ref-aft/pulls/32))
+
+
 ## climate-ref-aft 0.5.1 (2026-07-27)
 
 ### Improvements
