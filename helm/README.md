@@ -375,7 +375,7 @@ Environment variables can be set via `defaults.env` or per-provider:
 | ----------------------- | ------------------------- | -------------------------------------------- |
 | `CELERY_BROKER_URL`     | Redis broker URL          | Auto-configured to Dragonfly                 |
 | `CELERY_RESULT_BACKEND` | Redis result backend URL  | Auto-configured to Dragonfly                 |
-| `CELERY_ACCEPT_CONTENT` | Accepted content types    | `["json", "pickle"]`                         |
+| `CELERY_ACCEPT_CONTENT` | Accepted content types    | `json,ref-json` (from the image)             |
 | `REF_EXECUTOR`          | Executor class            | `climate_ref_celery.executor.CeleryExecutor` |
 | `REF_CONFIGURATION`     | Path to REF configuration | `/ref`                                       |
 | `REF_SOFTWARE_ROOT`     | Path to conda environments| `/ref/software`                              |
@@ -402,6 +402,15 @@ We need to be resiliant to workers failing.
 | `CELERY_RESULT_EXPIRES`             | Result expiry in seconds                         | `172800` (48 hours) |
 | `CELERY_WORKER_MAX_TASKS_PER_CHILD` | Recycle worker after N tasks (memory leak guard) | None (no limit)     |
 | `CELERY_WORKER_MAX_MEMORY_PER_CHILD`| Max resident memory per worker in KB             | None (no limit)     |
+| `CELERY_TASK_COMPRESSION`           | Codec for task message bodies (empty to disable) | `gzip`              |
+| `CELERY_RESULT_COMPRESSION`         | Codec for result bodies (empty to disable)       | `gzip`              |
+| `CELERY_ACCEPT_CONTENT`             | Comma separated content types the worker accepts | `json,ref-json`     |
+
+Tasks and results are encoded as JSON (`ref-json`) in the climate-ref release that follows v0.16.2.
+A rolling upgrade from a release that still used pickle
+needs `CELERY_ACCEPT_CONTENT` set to `json,ref-json,pickle` until the queues have drained, then reverted.
+Upgrade the workers before any client that submits tasks,
+because an old worker cannot decode `ref-json` messages.
 
 The following settings are always enabled in `base.py` and cannot be overridden via
 environment variables:
