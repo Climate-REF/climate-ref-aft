@@ -122,10 +122,15 @@ def _provider_env(docs: list[dict], provider: str) -> dict:
     return find(docs, "Secret", f"-{provider}")["stringData"]
 
 
+def _container_env(docs: list[dict], provider: str) -> dict:
+    container = find(docs, "Deployment", f"-{provider}")["spec"]["template"]["spec"]["containers"][0]
+    return {e["name"]: e.get("value") for e in container.get("env", [])}
+
+
 def test_provider_specific_env_does_not_leak_between_providers():
     docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}")
-    assert "ESMVALTOOL_CONFIG_DIR" in _provider_env(docs, "esmvaltool")
-    assert "ESMVALTOOL_CONFIG_DIR" not in _provider_env(docs, "pmp")
+    assert "ESMVALTOOL_CONFIG_DIR" in _container_env(docs, "esmvaltool")
+    assert "ESMVALTOOL_CONFIG_DIR" not in _container_env(docs, "pmp")
     assert _provider_env(docs, "pmp")["DASK_SCHEDULER"] == "synchronous"
     assert _provider_env(docs, "ilamb")["DASK_SCHEDULER"] == "synchronous"
     assert "DASK_SCHEDULER" not in _provider_env(docs, "orchestrator")
@@ -148,12 +153,24 @@ def test_esmvaltool_config_is_rendered_and_mounted():
     pod = find(docs, "Deployment", "-esmvaltool")["spec"]["template"]["spec"]
     mounts = {m["name"]: m["mountPath"] for m in pod["containers"][0]["volumeMounts"]}
     assert mounts["esmvaltool-config"] == "/etc/esmvaltool"
-    assert _provider_env(docs, "esmvaltool")["ESMVALTOOL_CONFIG_DIR"] == "/etc/esmvaltool"
+    assert _container_env(docs, "esmvaltool")["ESMVALTOOL_CONFIG_DIR"] == "/etc/esmvaltool"
+
+
+def test_esmvaltool_config_dir_survives_an_env_override():
+    # esmvalcore silently ignores a config dir that ESMVALTOOL_CONFIG_DIR does not
+    # point at, so the env var must ride with the mount in the deployment template
+    # rather than sit in values.yaml where an override can drop it. See issue #28.
+    docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}", "providers.esmvaltool.env=null")
+    assert _container_env(docs, "esmvaltool")["ESMVALTOOL_CONFIG_DIR"] == "/etc/esmvaltool"
 
 
 def test_esmvaltool_config_can_be_opted_out():
     docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}", "providers.esmvaltool.config=null")
     assert not [d for d in docs if d["metadata"]["name"].endswith("-esmvaltool-config")]
+    pod = find(docs, "Deployment", "-esmvaltool")["spec"]["template"]["spec"]
+    mounts = [m["name"] for m in pod["containers"][0].get("volumeMounts", [])]
+    assert "esmvaltool-config" not in mounts
+    assert "ESMVALTOOL_CONFIG_DIR" not in _container_env(docs, "esmvaltool")
 
 
 def test_per_provider_values_override_the_shared_defaults():

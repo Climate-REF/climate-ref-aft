@@ -267,12 +267,13 @@ providers:
     # See https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/
     concurrency: 1
     # Esmvalcore configuration written to a ConfigMap and mounted at
-    # /etc/esmvaltool/config.yaml. Without this, esmvalcore auto-detects all
+    # /etc/esmvaltool/config.yaml, with ESMVALTOOL_CONFIG_DIR set on the worker
+    # container so esmvalcore reads it. Without this, esmvalcore auto-detects all
     # available cores and runs unbounded dask workers, which routinely OOMs
     # the host node when multiple diagnostics share a machine.
     # See https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/
     # Set `config: null` (or remove the key) to opt out and provide your own
-    # config via `volumes`/`volumeMounts` + ESMVALTOOL_CONFIG_DIR.
+    # config via `volumes`/`volumeMounts` + ESMVALTOOL_CONFIG_DIR in `env`.
     config:
       max_parallel_tasks: 2
       dask:
@@ -284,8 +285,6 @@ providers:
               n_workers: 2
               threads_per_worker: 2
               memory_limit: 4GiB
-    env:
-      ESMVALTOOL_CONFIG_DIR: /etc/esmvaltool
   pmp:
     env:
       # PMP recommends the synchronous Dask scheduler when running multiple
