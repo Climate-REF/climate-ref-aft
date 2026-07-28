@@ -70,6 +70,12 @@ spec:
         imagePullPolicy: {{ $spec.image.pullPolicy }}
         args:
         {{- toYaml $args | nindent 8 }}
+        {{- if and (eq $provider "esmvaltool") $spec.config }}
+        {{- /* Container env beats envFrom, so a values override cannot detach the mounted config. */}}
+        env:
+        - name: ESMVALTOOL_CONFIG_DIR
+          value: /etc/esmvaltool
+        {{- end }}
         envFrom:
         - secretRef:
             name: {{ include "ref.fullname" $ }}-{{ $provider }}
