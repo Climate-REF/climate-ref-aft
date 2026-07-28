@@ -275,11 +275,12 @@ providers:
     # running multiple Celery workers per pod multiplies that memory footprint and OOM-kills the node.
     # See https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/
     concurrency: 1
-    # E configuration written to a ConfigMap and mounted at /etc/esmvaltool/config.yaml, 
-    # with ESMVALTOOL_CONFIG_DIR set on the worker container so esmvalcore reads it. 
+    # Esmvalcore configuration written to a ConfigMap and mounted at /etc/esmvaltool/config.yaml,
+    # with ESMVALTOOL_CONFIG_DIR set on the worker container so esmvalcore reads it.
     # Without this, esmvalcore auto-detects all available cores and causes OOMs.
-    # Set `config: null` (or remove the key) to opt out and provide your own config
+    # Set `config: null` to opt out and provide your own config
     # via `volumes`/`volumeMounts` + ESMVALTOOL_CONFIG_DIR in `env`.
+    # Removing the key from an override has no effect, because this default stays in place.
     config:
       max_parallel_tasks: 2
       dask:

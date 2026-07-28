@@ -131,6 +131,9 @@ def test_provider_specific_env_does_not_leak_between_providers():
     docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}")
     assert "ESMVALTOOL_CONFIG_DIR" in _container_env(docs, "esmvaltool")
     assert "ESMVALTOOL_CONFIG_DIR" not in _container_env(docs, "pmp")
+    # The env var is template-managed container env, so no provider Secret carries it.
+    for provider in PROVIDERS:
+        assert "ESMVALTOOL_CONFIG_DIR" not in _provider_env(docs, provider)
     assert _provider_env(docs, "pmp")["DASK_SCHEDULER"] == "synchronous"
     assert _provider_env(docs, "ilamb")["DASK_SCHEDULER"] == "synchronous"
     assert "DASK_SCHEDULER" not in _provider_env(docs, "orchestrator")
