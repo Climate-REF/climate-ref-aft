@@ -310,12 +310,21 @@ so the timings have to suit how long a provider's diagnostics take.
 | `defaults.livenessProbe.enabled`             | Enable the probe                        | `false` |
 | `defaults.livenessProbe.initialDelaySeconds` | Grace period for worker startup         | `600`   |
 | `defaults.livenessProbe.periodSeconds`       | Interval between pings                  | `120`   |
+| `defaults.livenessProbe.timeoutSeconds`      | Kubelet timeout for the probe           | `60`    |
 | `defaults.livenessProbe.failureThreshold`    | Failures tolerated before a restart     | `3`     |
 | `defaults.livenessProbe.pingTimeoutSeconds`  | Timeout passed to `celery inspect ping` | `30`    |
-| `defaults.livenessProbe.timeoutSeconds`      | Kubelet timeout for the probe           | `60`    |
 
 The defaults allow roughly 6 minutes wedged before a restart.
-Keep `pingTimeoutSeconds` below `timeoutSeconds` so celery reports the failure itself before the kubelet kills the probe.
+Keep `pingTimeoutSeconds` below `timeoutSeconds`,
+so celery reports the failure itself before the kubelet kills the probe.
+Raise `initialDelaySeconds` if a worker takes longer than 10 minutes to boot,
+because the probe restarts a pod that is still starting up.
+
+Two costs worth knowing before enabling it:
+
+- A broker outage fails the ping on every worker at once,
+  so an outage longer than `periodSeconds` times `failureThreshold` restarts the fleet.
+- Each probe forks a Python process that imports `climate_ref_celery` inside the pod's memory limit.
 
 Do not enable the probe on a provider running `--pool=solo` via `extraArgs`.
 The solo pool runs tasks in the main thread, so the worker cannot answer a control ping

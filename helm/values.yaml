@@ -195,19 +195,16 @@ defaults:
   # for options not exposed as first-class values (e.g. ["--pool=solo"]).
   extraArgs: []
 
-  # Liveness probe that pings the worker's own Celery consumer loop.
-  # A wedged worker keeps its process and its broker connection but stops consuming,
-  # so its queue backs up while the pod still reports Ready.
-  # Off by default because a false positive restarts the pod and destroys the diagnostic it was running.
+  # Liveness probe that pings the worker's own Celery consumer loop,
+  # so a worker that has stopped consuming is restarted rather than left reporting Ready.
+  # A failing probe destroys the execution the worker was running,
+  # so the timings must suit how long this provider's diagnostics take.
   # Do not enable this alongside `--pool=solo`, which blocks the control loop while a task runs.
   livenessProbe:
     enabled: false
     initialDelaySeconds: 600
     periodSeconds: 120
     timeoutSeconds: 60
-    # A busy worker answers slowly, so allow several misses before a restart.
-    # Three failures at 120s is roughly 6 minutes wedged before the pod is recycled,
-    # which is long enough that a worker running a diagnostic is never recycled for being slow to answer.
     failureThreshold: 3
     # Timeout passed to `celery inspect ping`.
     # Keep it below timeoutSeconds so celery reports the failure itself
