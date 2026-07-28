@@ -157,8 +157,8 @@ def test_esmvaltool_config_is_rendered_and_mounted():
 
 
 def test_esmvaltool_config_dir_survives_an_env_override():
-    # esmvalcore silently ignores a config dir that ESMVALTOOL_CONFIG_DIR does not
-    # point at, so the env var must ride with the mount in the deployment template
+    # esmvalcore silently ignores a config dir that ESMVALTOOL_CONFIG_DIR does not point at,
+    # so the env var must ride with the mount in the deployment template
     # rather than sit in values.yaml where an override can drop it. See issue #28.
     docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}", "providers.esmvaltool.env=null")
     assert _container_env(docs, "esmvaltool")["ESMVALTOOL_CONFIG_DIR"] == "/etc/esmvaltool"
