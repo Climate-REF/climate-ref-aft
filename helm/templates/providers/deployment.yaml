@@ -80,6 +80,19 @@ spec:
         resources:
           {{- toYaml . | nindent 12 }}
         {{- end }}
+        {{- if and $spec.livenessProbe $spec.livenessProbe.enabled }}
+        {{- $probe := $spec.livenessProbe }}
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - 'celery -A climate_ref_celery.app inspect ping -d celery@$(hostname) -t {{ $probe.pingTimeoutSeconds }}'
+          initialDelaySeconds: {{ $probe.initialDelaySeconds }}
+          periodSeconds: {{ $probe.periodSeconds }}
+          timeoutSeconds: {{ $probe.timeoutSeconds }}
+          failureThreshold: {{ $probe.failureThreshold }}
+        {{- end }}
         {{- with $volumeMounts }}
         volumeMounts:
           {{- toYaml . | nindent 8 }}

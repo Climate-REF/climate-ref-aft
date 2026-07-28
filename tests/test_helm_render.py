@@ -105,6 +105,45 @@ def test_esmvaltool_worker_is_pinned_to_one_celery_child():
     assert "--concurrency=1" in args
 
 
+def _container(docs: list[dict], provider: str) -> dict:
+    return find(docs, "Deployment", f"-{provider}")["spec"]["template"]["spec"]["containers"][0]
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_workers_have_no_liveness_probe_by_default(provider):
+    docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}")
+    assert "livenessProbe" not in _container(docs, provider)
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_liveness_probe_pings_the_workers_own_celery_node(provider):
+    # A wedged worker still passes a process check,
+    # so the probe has to exercise the consumer loop of this pod specifically.
+    docs = render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "defaults.livenessProbe.enabled=true",
+    )
+    probe = _container(docs, provider)["livenessProbe"]
+    command = probe["exec"]["command"][-1]
+    assert "inspect ping" in command
+    assert "-d celery@$(hostname)" in command
+    assert "-t 30" in command
+    assert probe["initialDelaySeconds"] == 600
+    assert probe["periodSeconds"] == 120
+    assert probe["timeoutSeconds"] == 60
+    assert probe["failureThreshold"] == 3
+
+
+def test_liveness_probe_can_be_enabled_for_one_provider_only():
+    docs = render(
+        f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}",
+        "providers.ilamb.livenessProbe.enabled=true",
+        "providers.ilamb.livenessProbe.periodSeconds=60",
+    )
+    assert _container(docs, "ilamb")["livenessProbe"]["periodSeconds"] == 60
+    assert "livenessProbe" not in _container(docs, "pmp")
+
+
 def test_production_render_fails_without_a_secret_key():
     # helm/values.yaml ships ENVIRONMENT=production and an empty SECRET_KEY on purpose,
     # so a bare render must fail rather than deploy a guessable key.
