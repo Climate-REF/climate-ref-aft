@@ -315,8 +315,6 @@ defaults:
 #  If no overrides are provided, the provider will be deployed with the defaults above.
 #
 # Each provider carries the pod size and time limit its own diagnostics need.
-# One task runs per pod, so `replicaCount` is how many of that provider's diagnostics
-# can run at once. It stays at 1 here, because the right number depends on the cluster.
 # CELERY_VISIBILITY_TIMEOUT must stay >= CELERY_TASK_TIME_LIMIT,
 # otherwise Redis redelivers a task that is still running and it executes twice.
 providers:
@@ -331,7 +329,9 @@ providers:
         cpu: 2
         memory: 8Gi
   esmvaltool:
-    # ESMValTool holds the most memory of the three, and its diagnostics run for hours.
+    # Each esmvaltool execution already fans out via its own Dask cluster (see `config` below),
+    # so a second Celery process per pod multiplies that footprint and OOM-kills the node.
+    # See https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/
     resources:
       requests:
         cpu: 4

@@ -1,4 +1,11 @@
 api:
+  # The API starts and answers a health check here, it does not serve real traffic.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
   env:
     SECRET_KEY: ci-test-secret
     # Diagnostic providers (climate_ref_ilamb / esmvaltool) create config

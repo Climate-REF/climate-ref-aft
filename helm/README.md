@@ -308,7 +308,7 @@ These defaults apply to all providers unless overridden per-provider.
 
 The chart ships the smallest pod that can actually run all AFT diagnostics.
 The diagnostics are generally memory constrained.
-With memory limits some diagnostics will OOM.
+With smaller memory limits some diagnostics will OOM.
 
 | Pool         | CPU request | CPU limit | Memory request | Memory limit | Task time limit  |
 | ------------ | ----------- | --------- | -------------- | ------------ | ---------------- |
@@ -325,11 +325,14 @@ Three things follow from this and are worth understanding before changing any of
   so a second task does not fit alongside either.
 - Throughput comes from `replicaCount`, not from `concurrency`.
   `replicaCount` stays at 1 here, because the right number depends on how much cluster there is.
-  Running 6 esmvaltool, 6 pmp and 4 ilamb replicas gives 16 concurrent tasks and needs roughly 64 CPU and 256Gi of requests.
+  Running 6 esmvaltool, 6 pmp and 4 ilamb replicas gives 16 concurrent tasks,
+  and needs roughly 64 CPU and 256Gi of requests.
 - Requests are close to what a typical execution uses, and limits are the headroom for the outliers.
 
-A provider's own `resources` win over `defaults.resources`,
-so a smaller `defaults.resources` alone does not shrink the workers.
+A provider's own `resources` win over `defaults.resources` key by key,
+so a provider that names only `limits` keeps the default requests.
+Every provider here names all four, so lowering `defaults.resources` alone does not shrink the workers.
+The test values files override each provider individually for that reason.
 
 ### Worker Liveness Probe
 
