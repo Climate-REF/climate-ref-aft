@@ -28,6 +28,17 @@ flower:
 defaults:
   podSecurityContext:
     runAsUser: 1000
+
+  # The chart defaults size a pod for a real diagnostic, which no CI runner has.
+  # These pods only need to start and answer a ping.
+  # Each provider is given the same block below, because a provider's own resources win over the defaults.
+  resources: &testResources
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
   volumes:
   - name: gha-cached
     hostPath:
@@ -42,7 +53,23 @@ defaults:
     mountPath: /tmp
     readOnly: false
 
+providers:
+  orchestrator:
+    resources: *testResources
+  esmvaltool:
+    resources: *testResources
+  pmp:
+    resources: *testResources
+  ilamb:
+    resources: *testResources
+
 dragonfly:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
   extraArgs:
   - --proactor_threads=1
   - --maxmemory=256mb
