@@ -391,6 +391,69 @@ def test_flower_waits_for_dragonfly_when_the_enabled_key_is_absent(chart_without
     )
 
 
+def _pod_annotations(docs: list[dict], provider: str) -> dict:
+    return find(docs, "Deployment", f"-{provider}")["spec"]["template"]["metadata"]["annotations"]
+
+
+def test_each_provider_is_keyed_to_its_own_secret():
+    # Hashing the whole rendered secret.yaml gave every worker the same checksum,
+    # so a change to one provider's env restarted all of them
+    # and re-ran whatever long executions were in flight.
+    docs = render(SECRET_ARG)
+    checksums = {p: _pod_annotations(docs, p)["checksum/config"] for p in PROVIDERS}
+    assert len(set(checksums.values())) == len(PROVIDERS), f"providers share a checksum: {checksums}"
+
+
+def test_changing_one_provider_env_does_not_restart_the_others():
+    before = render(SECRET_ARG)
+    after = render(SECRET_ARG, "providers.ilamb.env.DASK_SCHEDULER=threads")
+    assert _pod_annotations(after, "ilamb") != _pod_annotations(before, "ilamb")
+    for provider in ("esmvaltool", "pmp", "orchestrator"):
+        assert _pod_annotations(after, provider) == _pod_annotations(before, provider)
+
+
+def test_changing_a_provider_config_restarts_that_worker():
+    # The ConfigMap is remounted on upgrade, but the running process only rereads it on restart,
+    # so the config has to take part in the pod annotations.
+    before = render(SECRET_ARG)
+    after = render(SECRET_ARG, "providers.esmvaltool.config.max_parallel_tasks=9")
+    assert (
+        _pod_annotations(after, "esmvaltool")["checksum/configmap"]
+        != _pod_annotations(before, "esmvaltool")["checksum/configmap"]
+    )
+
+
+def test_only_providers_with_a_config_get_a_configmap_checksum():
+    docs = render(SECRET_ARG)
+    assert "checksum/configmap" in _pod_annotations(docs, "esmvaltool")
+    for provider in ("pmp", "ilamb", "orchestrator"):
+        assert "checksum/configmap" not in _pod_annotations(docs, provider)
+
+
+def test_any_provider_can_carry_a_chart_managed_config():
+    # The config mount is driven by the provider's own values, not by a template
+    # that knows esmvaltool by name.
+    docs = render(
+        SECRET_ARG,
+        "providers.pmp.config.foo=bar",
+        "providers.pmp.configMountPath=/etc/pmp",
+        "providers.pmp.configEnvVar=PMP_CONFIG_DIR",
+    )
+    configmap = find(docs, "ConfigMap", "-pmp-config")
+    assert yaml.safe_load(configmap["data"]["config.yaml"]) == {"foo": "bar"}
+
+    pod = find(docs, "Deployment", "-pmp")["spec"]["template"]["spec"]
+    mounts = {m["name"]: m["mountPath"] for m in pod["containers"][0]["volumeMounts"]}
+    assert mounts["pmp-config"] == "/etc/pmp"
+    assert _container_env(docs, "pmp")["PMP_CONFIG_DIR"] == "/etc/pmp"
+
+
+def test_a_config_without_a_mount_path_fails_with_a_clear_message():
+    result = _render(SECRET_ARG, "providers.pmp.config.foo=bar")
+    assert result.returncode != 0
+    assert "providers.pmp: config is set, so configMountPath must be set too" in result.stderr
+
+
 def _service_account_names(docs: list[dict]) -> set[str]:
     return {d["metadata"]["name"] for d in docs if d.get("kind") == "ServiceAccount"}
 
@@ -415,6 +478,21 @@ def test_no_deployment_references_a_service_account_that_is_not_created():
 def test_every_deployment_uses_its_own_service_account_by_default():
     docs = render(SECRET_ARG)
     _assert_wanted_service_accounts_exist(docs, required=True)
+
+
+def test_declining_to_create_a_service_account_omits_the_field():
+    # Naming an account the chart does not create means the pod is never admitted,
+    # so the field has to disappear rather than fall back to a default name.
+    docs = render(
+        SECRET_ARG,
+        "api.serviceAccount.create=false",
+        "flower.serviceAccount.create=false",
+        "providers.pmp.serviceAccount.create=false",
+    )
+    for component in ("api", "flower", "pmp"):
+        pod = find(docs, "Deployment", f"-{component}")["spec"]["template"]["spec"]
+        assert "serviceAccountName" not in pod
+    _assert_wanted_service_accounts_exist(docs)
 
 
 def test_a_custom_service_account_name_is_the_one_that_gets_created():

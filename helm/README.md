@@ -456,9 +456,12 @@ The chart ships sane defaults that follow the upstream
   with `ESMVALTOOL_CONFIG_DIR` set on the worker container so esmvalcore reads it.
   Without this, esmvalcore auto-detects all available cores and runs unbounded dask workers,
   which routinely OOMs the host node when multiple diagnostics share a machine.
-  Override the block to tune `max_parallel_tasks`, dask worker counts, or `memory_limit`;
-  set `config: null` to opt out and supply your own config via volumes/volumeMounts
+  Override the block to tune `max_parallel_tasks`, dask worker counts, or `memory_limit`.
+  Set `config: null` to opt out and supply your own config via volumes/volumeMounts
   plus `ESMVALTOOL_CONFIG_DIR` in `env`.
+  Any provider can carry a config this way, not just esmvaltool:
+  `config` is the document, `configMountPath` is the directory it mounts into (required alongside `config`),
+  and `configEnvVar` names an environment variable pointing at that directory (optional).
 - **`providers.pmp.env.DASK_SCHEDULER`** and **`providers.ilamb.env.DASK_SCHEDULER`** default to `synchronous`.
   PMP and ILAMB crash under the threaded scheduler when multiple executions share a host
   (see [Climate-REF/climate-ref#437](https://github.com/Climate-REF/climate-ref/issues/437)).
