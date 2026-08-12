@@ -329,9 +329,9 @@ providers:
         cpu: 2
         memory: 8Gi
   esmvaltool:
-    # Each esmvaltool execution already fans out via its own Dask cluster (see `config` below),
-    # so a second Celery process per pod multiplies that footprint and OOM-kills the node.
-    # See https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/
+    # An execution fans out across its own Dask cluster (see `config` below),
+    # so the pod holds every one of those workers at once.
+    # This is the largest footprint of the three providers, and its diagnostics run for hours.
     resources:
       requests:
         cpu: 4
