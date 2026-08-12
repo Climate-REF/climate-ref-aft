@@ -226,6 +226,11 @@ Losing the broker strands every running execution.
 `--maxmemory` sits below the pod limit, so Dragonfly evicts keys itself before the kernel OOM-kills it.
 Raise both together, keeping `--maxmemory` roughly two thirds of the limit.
 
+Dragonfly counts its io threads from the CPU limit and requires 256MiB of `--maxmemory` per thread.
+Lowering `--maxmemory` without lowering the CPU limit makes it exit at startup.
+The default 4 CPU limit needs at least 1GiB,
+which is why the test values files drop the CPU limit to 1 alongside `--maxmemory`.
+
 See [Dragonfly Helm chart](https://github.com/dragonflydb/dragonfly/tree/main/contrib/charts/dragonfly) for all available options.
 
 To run against a broker you manage yourself, disable the subchart and supply its URL via `externalBroker.url`:

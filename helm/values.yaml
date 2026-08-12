@@ -99,6 +99,8 @@ dragonfly:
       memory: 6Gi
 
   # maxmemory sits below the pod limit, so Dragonfly evicts before the kernel OOM-kills it.
+  # Dragonfly counts its io threads from the CPU limit and requires 256MiB of maxmemory per thread,
+  # so lowering maxmemory without lowering the CPU limit makes it refuse to start.
   extraArgs:
   - --maxmemory=4Gi
 
