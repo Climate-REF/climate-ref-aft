@@ -150,7 +150,7 @@ defaults:
     mountPath: /tmp
 ```
 
-For ephemeral test deployments (no persistence across upgrades), `/ref` can also be an `emptyDir` — see [`helm/ci/minimal-values.yaml`](ci/minimal-values.yaml).
+For ephemeral test deployments (no persistence across upgrades), `/ref` can also be an `emptyDir`, see [`helm/ci/minimal-values.yaml`](ci/minimal-values.yaml).
 
 This is the looser of two valid layouts: provider workers only need RO access to `/ref/software` and a per-pod scratch directory, but the chart does not yet expose that split. Tracked in [issue #8](https://github.com/Climate-REF/climate-ref-aft/issues/8).
 
@@ -223,7 +223,7 @@ See [Dragonfly Helm chart](https://github.com/dragonflydb/dragonfly/tree/main/co
 
 To run against a broker you manage yourself, disable the subchart and supply its URL via `externalBroker.url`:
 
-```bash  
+```bash
 helm install ref ./helm \
   --set dragonfly.enabled=false \
   --set externalBroker.url=redis://my-broker:6379
@@ -472,9 +472,12 @@ The chart ships sane defaults that follow the upstream
   with `ESMVALTOOL_CONFIG_DIR` set on the worker container so esmvalcore reads it.
   Without this, esmvalcore auto-detects all available cores and runs unbounded dask workers,
   which routinely OOMs the host node when multiple diagnostics share a machine.
-  Override the block to tune `max_parallel_tasks`, dask worker counts, or `memory_limit`;
-  set `config: null` to opt out and supply your own config via volumes/volumeMounts
+  Override the block to tune `max_parallel_tasks`, dask worker counts, or `memory_limit`.
+  Set `config: null` to opt out and supply your own config via volumes/volumeMounts
   plus `ESMVALTOOL_CONFIG_DIR` in `env`.
+  Any provider can carry a config this way, not just esmvaltool:
+  `config` is the document, `configMountPath` is the directory it mounts into (required alongside `config`),
+  and `configEnvVar` names an environment variable pointing at that directory (optional).
 - **`providers.pmp.env.DASK_SCHEDULER`** and **`providers.ilamb.env.DASK_SCHEDULER`** default to `synchronous`.
   PMP and ILAMB crash under the threaded scheduler when multiple executions share a host
   (see [Climate-REF/climate-ref#437](https://github.com/Climate-REF/climate-ref/issues/437)).

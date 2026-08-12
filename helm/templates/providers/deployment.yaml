@@ -1,18 +1,30 @@
 {{- range $provider, $spec := (omit .Values.providers "defaults") -}}
-{{- $spec := mergeOverwrite (deepCopy $.Values.defaults) $spec -}}
+{{- $spec := include "ref.providerSpec" (dict "root" $ "spec" $spec) | fromYaml -}}
 {{- $args := list "celery" "start-worker" "--loglevel" "DEBUG" -}}
-{{- if ne $provider "orchestrator" -}} {{- $args = concat $args (list "--provider" $provider) -}} {{- end -}}
+{{- if ne $provider "orchestrator" -}}
+  {{- $args = concat $args (list "--provider" $provider) -}}
+{{- end -}}
 {{- /* Celery worker options passed after the `--` separator (e.g. --concurrency, --pool). */ -}}
 {{- $workerArgs := list -}}
-{{- if $spec.concurrency -}} {{- $workerArgs = append $workerArgs (printf "--concurrency=%v" $spec.concurrency) -}} {{- end -}}
-{{- with $spec.extraArgs -}} {{- $workerArgs = concat $workerArgs . -}} {{- end -}}
-{{- if $workerArgs -}} {{- $args = concat $args (list "--") $workerArgs -}} {{- end -}}
-{{- /* Chart-managed esmvaltool config: auto-mount when providers.esmvaltool.config is set. */ -}}
+{{- if $spec.concurrency -}}
+  {{- $workerArgs = append $workerArgs (printf "--concurrency=%v" $spec.concurrency) -}}
+{{- end -}}
+{{- with $spec.extraArgs -}}
+  {{- $workerArgs = concat $workerArgs . -}}
+{{- end -}}
+{{- if $workerArgs -}}
+  {{- $args = concat $args (list "--") $workerArgs -}}
+{{- end -}}
+{{- /* Chart-managed provider config: auto-mount when the provider sets `config`. */ -}}
 {{- $volumes := $spec.volumes | default list -}}
 {{- $volumeMounts := $spec.volumeMounts | default list -}}
-{{- if and (eq $provider "esmvaltool") $spec.config -}}
-  {{- $volumeMounts = append $volumeMounts (dict "name" "esmvaltool-config" "mountPath" "/etc/esmvaltool" "readOnly" true) -}}
-  {{- $volumes = append $volumes (dict "name" "esmvaltool-config" "configMap" (dict "name" (printf "%s-esmvaltool-config" (include "ref.fullname" $)))) -}}
+{{- $configName := printf "%s-%s-config" (include "ref.fullname" $) $provider -}}
+{{- if and $spec.config (not $spec.configMountPath) -}}
+  {{- fail (printf "providers.%s: config is set, so configMountPath must be set too" $provider) -}}
+{{- end -}}
+{{- if $spec.config -}}
+  {{- $volumeMounts = append $volumeMounts (dict "name" (printf "%s-config" $provider) "mountPath" $spec.configMountPath "readOnly" true) -}}
+  {{- $volumes = append $volumes (dict "name" (printf "%s-config" $provider) "configMap" (dict "name" $configName)) -}}
 {{- end -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -36,10 +48,15 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/providers/secret.yaml") $ | sha256sum }}
       {{- with $spec.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
+        {{- /* This provider's own Secret, so a change to another provider does not restart these pods.
+               Rendered last, so a podAnnotations override cannot detach a pod from its rollout trigger. */}}
+        checksum/config: {{ include "ref.providerSecret" (dict "root" $ "provider" $provider "spec" $spec) | sha256sum }}
+        {{- if $spec.config }}
+        checksum/configmap: {{ toYaml $spec.config | sha256sum }}
+        {{- end }}
       labels:
         app.kubernetes.io/component: {{ $provider }}
         {{- include "ref.labels" $ | nindent 8 }}
@@ -51,10 +68,8 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if and $spec.serviceAccount $spec.serviceAccount.name }}
-      serviceAccountName: {{ $spec.serviceAccount.name }}
-      {{- else if and $spec.serviceAccount $spec.serviceAccount.create }}
-      serviceAccountName: {{ include "ref.fullname" $ }}-{{ $provider }}
+      {{- with (include "ref.serviceAccountName" (dict "root" $ "component" $provider "serviceAccount" $spec.serviceAccount)) }}
+      serviceAccountName: {{ . }}
       {{- end }}
       {{- with $spec.podSecurityContext }}
       securityContext:
@@ -70,11 +85,11 @@ spec:
         imagePullPolicy: {{ $spec.image.pullPolicy }}
         args:
         {{- toYaml $args | nindent 8 }}
-        {{- if and (eq $provider "esmvaltool") $spec.config }}
+        {{- if and $spec.config $spec.configEnvVar }}
         {{- /* Container env beats envFrom, so a values override cannot detach the mounted config. */}}
         env:
-        - name: ESMVALTOOL_CONFIG_DIR
-          value: /etc/esmvaltool
+        - name: {{ $spec.configEnvVar }}
+          value: {{ $spec.configMountPath | quote }}
         {{- end }}
         envFrom:
         - secretRef:
