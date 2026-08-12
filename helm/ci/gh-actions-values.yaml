@@ -71,12 +71,13 @@ providers:
     resources: *testResources
 
 dragonfly:
+  # Only the requests are lowered, so the pod schedules on a CI node.
+  # Dragonfly sizes itself against the cgroup limit and exits if that limit crowds --maxmemory,
+  # so the chart's own limit is left in place.
   resources:
     requests:
       cpu: 100m
       memory: 256Mi
-    limits:
-      memory: 512Mi
   extraArgs:
   - --proactor_threads=1
   - --maxmemory=256mb
