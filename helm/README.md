@@ -175,7 +175,7 @@ The `api` section configures the ref-app (FastAPI + React frontend).
 | `api.image.pullPolicy` | Image pull policy         | `IfNotPresent`                             |
 | `api.service.type`     | Service type              | `ClusterIP`                                |
 | `api.service.port`     | Service port              | `80`                                       |
-| `api.resources`        | Resource requests/limits  | `{}`                                       |
+| `api.resources`        | Resource requests/limits  | 200m CPU / 2Gi, limit 6Gi                  |
 | `api.nodeSelector`     | Node selector             | `{}`                                       |
 | `api.tolerations`      | Tolerations               | `[]`                                       |
 | `api.affinity`         | Affinity rules            | `{}`                                       |
@@ -213,11 +213,23 @@ Set via `api.env`:
 
 ### Dragonfly (Redis) Configuration
 
-| Parameter                   | Description                                        | Default |
-| --------------------------- | -------------------------------------------------- | ------- |
-| `dragonfly.enabled`         | Deploy the bundled Dragonfly subchart              | `true`  |
-| `dragonfly.storage.enabled` | Enable persistent storage for Dragonfly            | `true`  |
-| `externalBroker.url`        | Celery broker URL when `dragonfly.enabled` is false | `""`    |
+| Parameter                   | Description                                         | Default                             |
+| --------------------------- | --------------------------------------------------- | ----------------------------------- |
+| `dragonfly.enabled`         | Deploy the bundled Dragonfly subchart               | `true`                              |
+| `dragonfly.storage.enabled` | Enable persistent storage for Dragonfly             | `true`                              |
+| `dragonfly.resources`       | Resource requests/limits                            | 4 CPU / 6Gi, request equal to limit |
+| `dragonfly.extraArgs`       | Extra Dragonfly arguments                           | `["--maxmemory=4Gi"]`               |
+| `externalBroker.url`        | Celery broker URL when `dragonfly.enabled` is false | `""`                                |
+
+The Dragonfly request equals its limit, so it is the last pod evicted when a node is under memory pressure.
+Losing the broker strands every running execution.
+`--maxmemory` sits below the pod limit, so Dragonfly evicts keys itself before the kernel OOM-kills it.
+Raise both together, keeping `--maxmemory` roughly two thirds of the limit.
+
+Dragonfly counts its io threads from the CPU limit and requires 256MiB of `--maxmemory` per thread.
+Lowering `--maxmemory` without lowering the CPU limit makes it exit at startup.
+The default 4 CPU limit needs at least 1GiB,
+which is why the test values files drop the CPU limit to 1 alongside `--maxmemory`.
 
 See [Dragonfly Helm chart](https://github.com/dragonflydb/dragonfly/tree/main/contrib/charts/dragonfly) for all available options.
 
@@ -247,7 +259,7 @@ overrides this helper and will keep pointing at whatever it hardcodes.
 | `flower.service.type`           | Service type                     | `ClusterIP`    |
 | `flower.service.port`           | Service port                     | `5555`         |
 | `flower.serviceMonitor.enabled` | Enable Prometheus ServiceMonitor | `false`        |
-| `flower.resources`              | Resource requests/limits         | `{}`           |
+| `flower.resources`              | Resource requests/limits         | 50m CPU / 128Mi, limit 512Mi |
 | `flower.nodeSelector`           | Node selector                    | `{}`           |
 | `flower.tolerations`            | Tolerations                      | `[]`           |
 | `flower.affinity`               | Affinity rules                   | `{}`           |
@@ -286,15 +298,46 @@ These defaults apply to all providers unless overridden per-provider.
 | Parameter                   | Description               | Default                           |
 | --------------------------- | ------------------------- | --------------------------------- |
 | `defaults.replicaCount`     | Number of worker replicas | `1`                               |
+| `defaults.concurrency`      | Celery child processes per pod | `1`                          |
 | `defaults.image.repository` | Worker image repository   | `ghcr.io/climate-ref/climate-ref` |
 | `defaults.image.tag`        | Worker image tag          | `v0.16.2`                         |
 | `defaults.image.pullPolicy` | Image pull policy         | `IfNotPresent`                    |
-| `defaults.resources`        | Resource requests/limits  | `{}`                              |
+| `defaults.resources`        | Resource requests/limits  | 4 CPU / 16Gi, limits 6 CPU / 32Gi |
 | `defaults.nodeSelector`     | Node selector             | `{}`                              |
 | `defaults.tolerations`      | Tolerations               | `[]`                              |
 | `defaults.affinity`         | Affinity rules            | `{}`                              |
 | `defaults.volumes`          | Additional volumes        | `[]`                              |
 | `defaults.volumeMounts`     | Additional volume mounts  | `[]`                              |
+
+### Sizing
+
+The chart ships the smallest pod that can actually run all AFT diagnostics.
+The diagnostics are generally memory constrained.
+With smaller memory limits some diagnostics will OOM.
+
+| Pool         | CPU request | CPU limit | Memory request | Memory limit | Task time limit  |
+| ------------ | ----------- | --------- | -------------- | ------------ | ---------------- |
+| esmvaltool   | 4           | 8         | 16Gi           | 40Gi         | 6 hours          |
+| pmp          | 4           | 6         | 16Gi           | 32Gi         | 2 hours          |
+| ilamb        | 4           | 6         | 16Gi           | 48Gi         | 30 minutes       |
+| orchestrator | 1           | 2         | 2Gi            | 8Gi          | inherits default |
+
+Three things follow from this and are worth understanding before changing any of them:
+
+- `concurrency` is 1 everywhere, so one task runs per pod.
+  None of the three tools bounds its own memory use, so the pod limit is the only thing that does.
+  A PMP PDO task holds around 15Gi, and the ILAMB `lai-avh15c1` diagnostic peaks near 39Gi on its own,
+  so a second task does not fit alongside either.
+- Throughput comes from `replicaCount`, not from `concurrency`.
+  `replicaCount` stays at 1 here, because the right number depends on how much cluster there is.
+  Running 6 esmvaltool, 6 pmp and 4 ilamb replicas gives 16 concurrent tasks,
+  and needs roughly 64 CPU and 256Gi of requests.
+- Requests are close to what a typical execution uses, and limits are the headroom for the outliers.
+
+A provider's own `resources` win over `defaults.resources` key by key,
+so a provider that names only `limits` keeps the default requests.
+Every provider here names all four, so lowering `defaults.resources` alone does not shrink the workers.
+The test values files override each provider individually for that reason.
 
 ### Worker Liveness Probe
 
@@ -360,11 +403,10 @@ Each provider under `providers.*` can override any default setting:
 providers:
   orchestrator: {}              # Uses all defaults
   esmvaltool:
-    replicaCount: 2             # Override replica count
+    replicaCount: 6             # Six pods, so six esmvaltool tasks at once
     resources:
-      requests:
-        memory: "2Gi"
-        cpu: "1"
+      limits:
+        memory: "64Gi"          # Merged over the shipped limits, requests are untouched
   pmp: {}
   ilamb: {}
 ```
@@ -403,9 +445,9 @@ We need to be resiliant to workers failing.
 | `CELERY_TASK_TIME_LIMIT`            | Hard kill timeout in seconds                     | `21600` (6 hours)   |
 | `CELERY_TASK_SOFT_TIME_LIMIT`       | Soft timeout (raises exception for cleanup)      | `19800` (5.5 hours) |
 | `CELERY_TASK_MAX_RETRIES`           | Max retries before permanent failure             | `2`                 |
-| `CELERY_VISIBILITY_TIMEOUT`         | Redis redelivery timeout (must be >= time limit) | Matches time limit  |
+| `CELERY_VISIBILITY_TIMEOUT`         | Redis redelivery timeout (must exceed time limit)| 5 minutes past it   |
 | `CELERY_WORKER_PREFETCH_MULTIPLIER` | Tasks prefetched per worker process              | `1`                 |
-| `CELERY_WORKER_CONCURRENCY`         | Worker processes per pod                         | CPU count           |
+| `CELERY_WORKER_CONCURRENCY`         | Worker processes per pod                         | `1`, via `--concurrency` |
 | `CELERY_RESULT_EXPIRES`             | Result expiry in seconds                         | `172800` (48 hours) |
 | `CELERY_WORKER_MAX_TASKS_PER_CHILD` | Recycle worker after N tasks (memory leak guard) | None (no limit)     |
 | `CELERY_WORKER_MAX_MEMORY_PER_CHILD`| Max resident memory per worker in KB             | None (no limit)     |
@@ -434,8 +476,9 @@ environment variables:
 
 #### Per-Provider Time Limits
 
-Providers have different runtime characteristics. Override time limits per-provider
-to avoid unnecessarily long visibility windows on fast providers:
+Providers have different runtime characteristics,
+so the chart sets a time limit per provider rather than one global window.
+These are the shipped defaults, repeated here so the shape is clear:
 
 ```yaml
 providers:
@@ -444,23 +487,26 @@ providers:
       # ESMValTool diagnostics can run for hours
       CELERY_TASK_TIME_LIMIT: "21600"        # 6 hours
       CELERY_TASK_SOFT_TIME_LIMIT: "19800"   # 5.5 hours
-      CELERY_VISIBILITY_TIMEOUT: "21600"
+      CELERY_VISIBILITY_TIMEOUT: "21900"     # 5 minutes past the hard limit
   ilamb:
     env:
       # ILAMB diagnostics are typically fast
       CELERY_TASK_TIME_LIMIT: "1800"         # 30 minutes
       CELERY_TASK_SOFT_TIME_LIMIT: "1500"    # 25 minutes
-      CELERY_VISIBILITY_TIMEOUT: "1800"
+      CELERY_VISIBILITY_TIMEOUT: "2100"      # 5 minutes past the hard limit
   pmp:
     env:
       CELERY_TASK_TIME_LIMIT: "7200"         # 2 hours
       CELERY_TASK_SOFT_TIME_LIMIT: "6600"    # 1 hour 50 min
-      CELERY_VISIBILITY_TIMEOUT: "7200"
+      CELERY_VISIBILITY_TIMEOUT: "7500"      # 5 minutes past the hard limit
 ```
 
-**Important:** `CELERY_VISIBILITY_TIMEOUT` must always be >= `CELERY_TASK_TIME_LIMIT`.
+**Important:** `CELERY_VISIBILITY_TIMEOUT` must always sit above `CELERY_TASK_TIME_LIMIT`, not merely equal it.
 If a task runs longer than the visibility timeout,
-Redis will redeliver it to another worker, causing duplicate execution. See the `celeryconf/base.py` docstring for details.
+Redis redelivers it to another worker and it executes twice.
+Equal values leave no margin, because `task_acks_late` means the worker stores the timeout result
+before it acknowledges the task, and the broker can redeliver during that gap.
+See the `celeryconf/base.py` docstring for details.
 
 ### Memory Use Control
 

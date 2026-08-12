@@ -58,12 +58,13 @@ api:
 
   # The API eagerly imports all diagnostic providers (esmvaltool/ilamb/pmp)
   # at startup, which needs well over 512Mi.
+  # The limit is headroom for request handling, not a steady state.
   resources:
     requests:
-      cpu: 100m
-      memory: 1Gi
-    limits:
+      cpu: 200m
       memory: 2Gi
+    limits:
+      memory: 6Gi
 
   # Additional envFrom sources, appended after the chart's own Secret,
   # so they win on any key both define.
@@ -86,6 +87,22 @@ dragonfly:
   enabled: true
   storage:
     enabled: true
+
+  # Requests match limits so the broker is the last pod evicted when a node is under pressure.
+  # Losing it strands every running execution.
+  resources:
+    requests:
+      cpu: 4
+      memory: 6Gi
+    limits:
+      cpu: 4
+      memory: 6Gi
+
+  # maxmemory sits below the pod limit, so Dragonfly evicts before the kernel OOM-kills it.
+  # Dragonfly counts its io threads from the CPU limit and requires 256MiB of maxmemory per thread,
+  # so lowering maxmemory without lowering the CPU limit makes it refuse to start.
+  extraArgs:
+  - --maxmemory=4Gi
 
 flower:
   env:
@@ -162,7 +179,13 @@ flower:
     type: ClusterIP
     port: 5555
 
-  resources: {}
+  # Flower only reads worker events and serves a small web UI.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
 
   autoscaling:
     enabled: false
@@ -191,7 +214,7 @@ defaults:
     # Celery reliability tuning (uncomment to override base.py defaults)
     # CELERY_TASK_TIME_LIMIT: "21600"          # Hard kill after 6 hours
     # CELERY_TASK_SOFT_TIME_LIMIT: "19800"     # Soft limit at 5.5 hours
-    # CELERY_VISIBILITY_TIMEOUT: "21600"       # Must be >= CELERY_TASK_TIME_LIMIT
+    # CELERY_VISIBILITY_TIMEOUT: "21900"       # Must be above CELERY_TASK_TIME_LIMIT
     # CELERY_WORKER_PREFETCH_MULTIPLIER: "1"
     # CELERY_RESULT_EXPIRES: "172800"          # 48 hours
     # CELERY_WORKER_MAX_TASKS_PER_CHILD: "50"  # Recycle workers to prevent memory leaks
@@ -205,10 +228,12 @@ defaults:
   replicaCount: 1
 
   # Number of Celery worker child processes per pod (passed as `--concurrency`).
-  # Leave unset to use Celery's default (one per CPU core). Set to 1 to pin a
-  # provider to a single worker process, e.g. for memory-heavy diagnostics that
-  # OOM when several run concurrently on the same node.
-  concurrency: null
+  # One per pod, because no provider bounds its own memory use,
+  # so the pod limit is the only thing holding a diagnostic down.
+  # A single ILAMB execution can peak near 40Gi, and two of those do not fit in one pod.
+  # Scale throughput with `replicaCount` rather than by raising this.
+  # Set to null to use Celery's default of one process per CPU core.
+  concurrency: 1
 
   # Additional arguments appended to the Celery worker after the `--` separator,
   # for options not exposed as first-class values (e.g. ["--pool=solo"]).
@@ -258,7 +283,17 @@ defaults:
     readOnlyRootFilesystem: true
     runAsNonRoot: true
 
-  resources: {}
+  # The floor for running a single diagnostic, not a tuned figure.
+  # Most diagnostics settle around 10Gi to 15Gi, so a smaller pod gets OOM-killed part way through.
+  # The limit is the headroom for the outliers, and each provider raises it to suit its own worst case.
+  # A cluster too small for these is too small to run a diagnostic at all.
+  resources:
+    requests:
+      cpu: 4
+      memory: 16Gi
+    limits:
+      cpu: 6
+      memory: 32Gi
 
   autoscaling:
     enabled: false
@@ -281,25 +316,36 @@ defaults:
 #
 #  If no overrides are provided, the provider will be deployed with the defaults above.
 #
-# Per-provider time limits can be set via env overrides. For example:
-#   esmvaltool:
-#     env:
-#       CELERY_TASK_TIME_LIMIT: "21600"       # 6 hours
-#       CELERY_TASK_SOFT_TIME_LIMIT: "19800"   # 5.5 hours
-#       CELERY_VISIBILITY_TIMEOUT: "21600"
-#   ilamb:
-#     env:
-#       CELERY_TASK_TIME_LIMIT: "1800"         # 30 minutes
-#       CELERY_TASK_SOFT_TIME_LIMIT: "1500"    # 25 minutes
-#       CELERY_VISIBILITY_TIMEOUT: "1800"
+# Each provider carries the pod size and time limit its own diagnostics need.
+# CELERY_VISIBILITY_TIMEOUT must stay above CELERY_TASK_TIME_LIMIT, not merely equal to it.
+# task_acks_late means the worker stores the timeout result before it acknowledges the task,
+# and an equal window lets the broker redeliver during that gap, so the task executes twice.
 providers:
-  orchestrator: {}
+  # The orchestrator queues and tracks executions rather than running them,
+  # so it needs far less than a diagnostic worker.
+  orchestrator:
+    resources:
+      requests:
+        cpu: 1
+        memory: 2Gi
+      limits:
+        cpu: 2
+        memory: 8Gi
   esmvaltool:
-    # Pin the esmvaltool worker to a single Celery child process.
-    # Each esmvaltool execution already fans out via its own Dask cluster (see `config` below);
-    # running multiple Celery workers per pod multiplies that memory footprint and OOM-kills the node.
-    # See https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/
-    concurrency: 1
+    # An execution fans out across its own Dask cluster (see `config` below),
+    # so the pod holds every one of those workers at once.
+    # This is the largest footprint of the three providers, and its diagnostics run for hours.
+    resources:
+      requests:
+        cpu: 4
+        memory: 16Gi
+      limits:
+        cpu: 8
+        memory: 40Gi
+    env:
+      CELERY_TASK_TIME_LIMIT: "21600"          # 6 hours
+      CELERY_TASK_SOFT_TIME_LIMIT: "19800"     # 5.5 hours
+      CELERY_VISIBILITY_TIMEOUT: "21900"     # 5 minutes past the hard limit
     # Esmvalcore configuration written to a ConfigMap and mounted at configMountPath/config.yaml,
     # with configEnvVar set on the worker container so esmvalcore reads it.
     # Without this, esmvalcore auto-detects all available cores and causes OOMs.
@@ -322,13 +368,36 @@ providers:
               threads_per_worker: 2
               memory_limit: 4GiB
   pmp:
+    # A PDO execution holds around 15Gi, which is what sets the request.
+    resources:
+      requests:
+        cpu: 4
+        memory: 16Gi
+      limits:
+        cpu: 6
+        memory: 32Gi
     env:
+      CELERY_TASK_TIME_LIMIT: "7200"           # 2 hours
+      CELERY_TASK_SOFT_TIME_LIMIT: "6600"      # 1 hour 50 minutes
+      CELERY_VISIBILITY_TIMEOUT: "7500"      # 5 minutes past the hard limit
       # PMP recommends the synchronous Dask scheduler when running multiple executions on the same machine.
       # The threaded scheduler crashes under excessive parallelism. See Climate-REF/climate-ref#437 and
       # https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/
       DASK_SCHEDULER: synchronous
   ilamb:
+    # ILAMB diagnostics finish quickly, but a few are very memory hungry.
+    # lai-avh15c1 peaks near 39Gi on its own, so the limit is well above the request.
+    resources:
+      requests:
+        cpu: 4
+        memory: 16Gi
+      limits:
+        cpu: 6
+        memory: 48Gi
     env:
+      CELERY_TASK_TIME_LIMIT: "1800"           # 30 minutes
+      CELERY_TASK_SOFT_TIME_LIMIT: "1500"      # 25 minutes
+      CELERY_VISIBILITY_TIMEOUT: "2100"      # 5 minutes past the hard limit
       # ILAMB/IOMB diagnostics are restricted to the synchronous Dask scheduler upstream.
       # Setting it explicitly is harmless and matches the documented recommendation.
       DASK_SCHEDULER: synchronous

@@ -10,6 +10,16 @@ api:
   enabled: false
 
 defaults:
+  # The chart defaults size a pod for a real diagnostic, which no CI runner has.
+  # Each provider is given the same block below, because a provider's own resources win over the defaults.
+  resources: &testResources
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
+
   volumes:
   - name: ref-data
     emptyDir: {}
@@ -22,7 +32,26 @@ defaults:
   - name: tmp
     mountPath: /tmp
 
+providers:
+  orchestrator:
+    resources: *testResources
+  esmvaltool:
+    resources: *testResources
+  pmp:
+    resources: *testResources
+  ilamb:
+    resources: *testResources
+
 dragonfly:
+  # Dragonfly counts its io threads from the CPU limit and demands 256MiB of maxmemory per thread,
+  # so the CPU limit has to come down alongside maxmemory or it refuses to start.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
   extraArgs:
   - --proactor_threads=1
-  - --maxmemory=256mb
+  - --maxmemory=512mb
