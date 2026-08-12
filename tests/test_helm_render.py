@@ -423,6 +423,12 @@ def test_changing_a_provider_config_restarts_that_worker():
     )
 
 
+def test_pod_annotations_cannot_clobber_the_rollout_checksums():
+    # A duplicate key leaves the last one standing, so the chart-managed keys are rendered last.
+    docs = render(SECRET_ARG, "providers.ilamb.podAnnotations.checksum/config=stale")
+    assert _pod_annotations(docs, "ilamb")["checksum/config"] != "stale"
+
+
 def test_only_providers_with_a_config_get_a_configmap_checksum():
     docs = render(SECRET_ARG)
     assert "checksum/configmap" in _pod_annotations(docs, "esmvaltool")
