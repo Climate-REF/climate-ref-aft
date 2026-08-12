@@ -88,7 +88,7 @@ spec:
         {{- /* Container env beats envFrom, so a values override cannot detach the mounted config. */}}
         env:
         - name: {{ $spec.configEnvVar }}
-          value: {{ $spec.configMountPath }}
+          value: {{ $spec.configMountPath | quote }}
         {{- end }}
         envFrom:
         - secretRef:
