@@ -1,4 +1,11 @@
 {{- if .Values.api.enabled -}}
+{{- $volumes := .Values.api.volumes | default .Values.defaults.volumes | default list -}}
+{{- $volumeMounts := .Values.api.volumeMounts | default .Values.defaults.volumeMounts | default list -}}
+{{- /* The API constructs the Celery executor when it triggers a solve, so it needs the routing table. */ -}}
+{{- if .Values.celeryRoutes -}}
+  {{- $volumeMounts = append $volumeMounts (dict "name" "celery-routes" "mountPath" "/etc/climate-ref/routes" "readOnly" true) -}}
+  {{- $volumes = append $volumes (dict "name" "celery-routes" "configMap" (dict "name" (printf "%s-celery-routes" (include "ref.fullname" .)))) -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -51,6 +58,11 @@ spec:
         {{- end }}
         image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
         imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+        {{- if .Values.celeryRoutes }}
+        env:
+        - name: REF_CELERY_ROUTES
+          value: /etc/climate-ref/routes/routes.toml
+        {{- end }}
         envFrom:
         - secretRef:
             name: {{ include "ref.fullname" . }}-api
@@ -68,11 +80,11 @@ spec:
         resources:
           {{- toYaml . | nindent 12 }}
         {{- end }}
-        {{- with (.Values.api.volumeMounts | default .Values.defaults.volumeMounts) }}
+        {{- with $volumeMounts }}
         volumeMounts:
           {{- toYaml . | nindent 12 }}
         {{- end }}
-      {{- with (.Values.api.volumes | default .Values.defaults.volumes) }}
+      {{- with $volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
       {{- end }}

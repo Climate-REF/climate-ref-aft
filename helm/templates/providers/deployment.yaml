@@ -1,29 +1,39 @@
-{{- range $provider, $spec := (omit .Values.providers "defaults") -}}
+{{- range $instance, $spec := (omit .Values.providers "defaults") -}}
 {{- $spec := mergeOverwrite (deepCopy $.Values.defaults) $spec -}}
+{{- /* The instance name is the deployment identity, the provider is what the worker runs. */ -}}
+{{- $provider := $spec.provider | default $instance -}}
 {{- $args := list "celery" "start-worker" "--loglevel" "DEBUG" -}}
 {{- if ne $provider "orchestrator" -}} {{- $args = concat $args (list "--provider" $provider) -}} {{- end -}}
 {{- /* Celery worker options passed after the `--` separator (e.g. --concurrency, --pool). */ -}}
 {{- $workerArgs := list -}}
 {{- if $spec.concurrency -}} {{- $workerArgs = append $workerArgs (printf "--concurrency=%v" $spec.concurrency) -}} {{- end -}}
+{{- /* A repeated --queues wins over the one start-worker derives from the provider, */ -}}
+{{- /* so this must precede extraArgs to stay overridable. */ -}}
+{{- with $spec.queues -}} {{- $workerArgs = append $workerArgs (printf "--queues=%s" (join "," .)) -}} {{- end -}}
 {{- with $spec.extraArgs -}} {{- $workerArgs = concat $workerArgs . -}} {{- end -}}
 {{- if $workerArgs -}} {{- $args = concat $args (list "--") $workerArgs -}} {{- end -}}
-{{- /* Chart-managed esmvaltool config: auto-mount when providers.esmvaltool.config is set. */ -}}
+{{- /* Chart-managed esmvaltool config: auto-mount when the instance sets `config`. */ -}}
 {{- $volumes := $spec.volumes | default list -}}
 {{- $volumeMounts := $spec.volumeMounts | default list -}}
-{{- if and (eq $provider "esmvaltool") $spec.config -}}
+{{- $esmvaltoolConfig := and (eq $provider "esmvaltool") $spec.config -}}
+{{- if $esmvaltoolConfig -}}
   {{- $volumeMounts = append $volumeMounts (dict "name" "esmvaltool-config" "mountPath" "/etc/esmvaltool" "readOnly" true) -}}
-  {{- $volumes = append $volumes (dict "name" "esmvaltool-config" "configMap" (dict "name" (printf "%s-esmvaltool-config" (include "ref.fullname" $)))) -}}
+  {{- $volumes = append $volumes (dict "name" "esmvaltool-config" "configMap" (dict "name" (printf "%s-%s-config" (include "ref.fullname" $) $instance))) -}}
+{{- end -}}
+{{- if $.Values.celeryRoutes -}}
+  {{- $volumeMounts = append $volumeMounts (dict "name" "celery-routes" "mountPath" "/etc/climate-ref/routes" "readOnly" true) -}}
+  {{- $volumes = append $volumes (dict "name" "celery-routes" "configMap" (dict "name" (printf "%s-celery-routes" (include "ref.fullname" $)))) -}}
 {{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "ref.fullname" $ }}-{{ $provider }}
+  name: {{ include "ref.fullname" $ }}-{{ $instance }}
   {{- with $spec.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   labels:
-    app.kubernetes.io/component: {{ $provider }}
+    app.kubernetes.io/component: {{ $instance }}
     {{- include "ref.labels" $ | nindent 4 }}
 spec:
   {{- if not (and $spec.autoscaling $spec.autoscaling.enabled) }}
@@ -31,7 +41,7 @@ spec:
   {{- end }}
   selector:
     matchLabels:
-      app.kubernetes.io/component: {{ $provider }}
+      app.kubernetes.io/component: {{ $instance }}
       {{- include "ref.selectorLabels" $ | nindent 6 }}
   template:
     metadata:
@@ -41,7 +51,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        app.kubernetes.io/component: {{ $provider }}
+        app.kubernetes.io/component: {{ $instance }}
         {{- include "ref.labels" $ | nindent 8 }}
         {{- with $spec.podLabels }}
         {{- toYaml . | nindent 8 }}
@@ -54,14 +64,14 @@ spec:
       {{- if and $spec.serviceAccount $spec.serviceAccount.name }}
       serviceAccountName: {{ $spec.serviceAccount.name }}
       {{- else if and $spec.serviceAccount $spec.serviceAccount.create }}
-      serviceAccountName: {{ include "ref.fullname" $ }}-{{ $provider }}
+      serviceAccountName: {{ include "ref.fullname" $ }}-{{ $instance }}
       {{- end }}
       {{- with $spec.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-      - name: {{ $provider }}
+      - name: {{ $instance }}
         {{- with $spec.securityContext }}
         securityContext:
           {{- toYaml . | nindent 12 }}
@@ -70,15 +80,21 @@ spec:
         imagePullPolicy: {{ $spec.image.pullPolicy }}
         args:
         {{- toYaml $args | nindent 8 }}
-        {{- if and (eq $provider "esmvaltool") $spec.config }}
-        {{- /* Container env beats envFrom, so a values override cannot detach the mounted config. */}}
+        {{- if or $esmvaltoolConfig $.Values.celeryRoutes }}
+        {{- /* Container env beats envFrom, so a values override cannot detach the mounted files. */}}
         env:
+        {{- if $esmvaltoolConfig }}
         - name: ESMVALTOOL_CONFIG_DIR
           value: /etc/esmvaltool
         {{- end }}
+        {{- if $.Values.celeryRoutes }}
+        - name: REF_CELERY_ROUTES
+          value: /etc/climate-ref/routes/routes.toml
+        {{- end }}
+        {{- end }}
         envFrom:
         - secretRef:
-            name: {{ include "ref.fullname" $ }}-{{ $provider }}
+            name: {{ include "ref.fullname" $ }}-{{ $instance }}
         {{- with $spec.extraEnvFrom }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -90,7 +106,7 @@ spec:
         {{- $probe := $spec.livenessProbe }}
         {{- /* The solo pool runs tasks in the main thread, so a busy worker cannot answer the ping. */}}
         {{- if regexMatch "(^| )(-P|--pool)(=| )solo( |$)" (join " " $spec.extraArgs) }}
-        {{- fail (printf "providers.%s: livenessProbe cannot be used with the solo pool" $provider) }}
+        {{- fail (printf "providers.%s: livenessProbe cannot be used with the solo pool" $instance) }}
         {{- end }}
         livenessProbe:
           exec:

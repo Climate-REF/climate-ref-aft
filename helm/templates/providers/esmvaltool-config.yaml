@@ -1,13 +1,17 @@
-{{- $esmvaltool := index .Values.providers "esmvaltool" -}}
-{{- if and $esmvaltool $esmvaltool.config -}}
+{{- range $instance, $spec := (omit .Values.providers "defaults") -}}
+{{- $spec := mergeOverwrite (deepCopy $.Values.defaults) $spec -}}
+{{- $provider := $spec.provider | default $instance -}}
+{{- if and (eq $provider "esmvaltool") $spec.config }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "ref.fullname" . }}-esmvaltool-config
+  name: {{ include "ref.fullname" $ }}-{{ $instance }}-config
   labels:
-    app.kubernetes.io/component: esmvaltool
-    {{- include "ref.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ $instance }}
+    {{- include "ref.labels" $ | nindent 4 }}
 data:
   config.yaml: |
-    {{- toYaml $esmvaltool.config | nindent 4 }}
+    {{- toYaml $spec.config | nindent 4 }}
+---
+{{ end -}}
 {{- end -}}

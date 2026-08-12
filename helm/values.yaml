@@ -82,6 +82,24 @@ api:
 externalBroker:
   url: ""
 
+# Celery queue routing table, written verbatim as TOML to a ConfigMap
+# and exposed to the API and every worker via REF_CELERY_ROUTES.
+# This places each execution on a queue such as esmvaltool-large,
+# so differently sized worker instances (see `queues` under `defaults`) can consume them.
+# See https://climate-ref.readthedocs.io/en/latest/configuration/ for the file format.
+# Requires climate-ref newer than v0.16.2. Older releases ignore the variable
+# and keep sending every execution to the bare provider queue.
+# Empty disables routing entirely.
+#
+# Example:
+#   celeryRoutes: |
+#     [esmvaltool]
+#     default = "esmvaltool-medium"
+#     rules = [
+#       { match = "portrait-*", queue = "esmvaltool-large" },
+#     ]
+celeryRoutes: ""
+
 dragonfly:
   enabled: true
   storage:
@@ -184,6 +202,21 @@ defaults:
     # CELERY_WORKER_MAX_MEMORY_PER_CHILD: "2097152"  # 2 GB cap per worker process (in KB)
 
   replicaCount: 1
+
+  # Provider this worker runs, passed as `--provider`.
+  # Defaults to the instance name, so a plain `esmvaltool:` instance needs nothing here.
+  # Setting it decouples the two,
+  # allowing several differently sized instances of one provider,
+  # e.g. an `esmvaltool-large` instance with `provider: esmvaltool`.
+  # The name `orchestrator` is special and runs the default worker without a provider.
+  provider: null
+
+  # Celery queues this worker consumes, replacing the provider's default queue.
+  # Use together with `celeryRoutes` to give each size class its own worker pool.
+  # Every queue the routing table can produce must appear in some instance's list,
+  # because a task sent to a queue with no consumer waits forever.
+  # Include the bare provider queue somewhere while older executions are still draining.
+  queues: []
 
   # Number of Celery worker child processes per pod (passed as `--concurrency`).
   # Leave unset to use Celery's default (one per CPU core). Set to 1 to pin a

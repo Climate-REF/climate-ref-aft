@@ -1,0 +1,11 @@
+{{- if .Values.celeryRoutes -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ref.fullname" . }}-celery-routes
+  labels:
+    {{- include "ref.labels" . | nindent 4 }}
+data:
+  routes.toml: |
+    {{- .Values.celeryRoutes | nindent 4 }}
+{{- end -}}

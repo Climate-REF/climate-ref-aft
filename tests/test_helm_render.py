@@ -8,6 +8,8 @@ so that template regressions surface in seconds rather than in a minikube job.
 
 import shutil
 import subprocess
+import tempfile
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -49,6 +51,22 @@ def render(*set_args: str, values: str | None = None) -> list[dict]:
     result = _render(*set_args, values=values)
     assert result.returncode == 0, f"helm template failed:\n{result.stderr}"
     return [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+
+
+def render_with(data: dict, *set_args: str) -> list[dict]:
+    """Render the chart with an extra values file built from `data`."""
+    with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
+        yaml.safe_dump(data, f)
+        path = Path(f.name)
+    try:
+        cmd = [shutil.which("helm"), "template", "test", str(CHART), "-f", str(path)]
+        for arg in set_args:
+            cmd += ["--set", arg]
+        result = subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
+        assert result.returncode == 0, f"helm template failed:\n{result.stderr}"
+        return [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+    finally:
+        path.unlink()
 
 
 def find(docs: list[dict], kind: str, name: str) -> dict:
@@ -463,3 +481,153 @@ def test_a_custom_service_account_name_is_the_one_that_gets_created():
         assert wanted is None or wanted in created, (
             f"{deployment['metadata']['name']} wants ServiceAccount {wanted!r}, which is not created"
         )
+
+
+# --- Celery queue routing ---------------------------------------------------
+
+SIZE_ROUTES = """
+default = "{provider}"
+
+[esmvaltool]
+default = "esmvaltool-medium"
+rules = [
+  { match = "portrait-*", queue = "esmvaltool-large" },
+]
+"""
+
+SIZE_VALUES = {
+    "api": {"env": {"SECRET_KEY": PLACEHOLDER_SECRET}},
+    "celeryRoutes": SIZE_ROUTES,
+    "providers": {
+        "esmvaltool": {"queues": ["esmvaltool", "esmvaltool-medium"]},
+        "esmvaltool-large": {
+            "provider": "esmvaltool",
+            "queues": ["esmvaltool-large", "esmvaltool-medium"],
+            "concurrency": 1,
+            "config": {"max_parallel_tasks": 4},
+        },
+    },
+}
+
+
+def _worker_deployments(docs: list[dict]) -> list[dict]:
+    workers = []
+    for doc in docs:
+        if doc.get("kind") != "Deployment":
+            continue
+        container = doc["spec"]["template"]["spec"]["containers"][0]
+        if container.get("args", [])[:2] == ["celery", "start-worker"]:
+            workers.append(doc)
+    return workers
+
+
+def _consumed_queues(docs: list[dict]) -> set[str]:
+    """The queues the rendered workers consume, mirroring start-worker's defaults."""
+    consumed: set[str] = set()
+    for worker in _worker_deployments(docs):
+        args = worker["spec"]["template"]["spec"]["containers"][0]["args"]
+        queues = None
+        # A repeated --queues last-wins in celery's CLI, so keep the final occurrence.
+        for arg in args:
+            if arg.startswith("--queues="):
+                queues = arg.removeprefix("--queues=").split(",")
+        if queues is None:
+            queues = [args[args.index("--provider") + 1]] if "--provider" in args else ["celery"]
+        consumed.update(queues)
+    return consumed
+
+
+def _routed_queues(docs: list[dict]) -> set[str]:
+    """Every queue the rendered routing table can produce."""
+    tables = [
+        d for d in docs if d.get("kind") == "ConfigMap" and d["metadata"]["name"].endswith("-celery-routes")
+    ]
+    if not tables:
+        return set()
+    table = tomllib.loads(tables[0]["data"]["routes.toml"])
+    top_default = table.get("default")
+
+    routed: set[str] = set()
+    for provider, entry in table.items():
+        if provider == "default":
+            continue
+        templates = [rule["queue"] for rule in entry.get("rules", [])]
+        templates.append(entry.get("default") or top_default or "{provider}")
+        routed.update(template.format(provider=provider) for template in templates)
+
+    # The top-level default also applies to providers with no table entry.
+    if top_default:
+        for worker in _worker_deployments(docs):
+            args = worker["spec"]["template"]["spec"]["containers"][0]["args"]
+            if "--provider" in args:
+                routed.add(top_default.format(provider=args[args.index("--provider") + 1]))
+    return routed
+
+
+def assert_no_orphan_queues(docs: list[dict]) -> None:
+    """A task sent to a queue with no consumer waits forever and the solve blocks."""
+    orphans = _routed_queues(docs) - _consumed_queues(docs)
+    assert not orphans, f"routing table targets queues no worker consumes: {sorted(orphans)}"
+
+
+def test_celery_routes_are_off_by_default():
+    docs = render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}")
+    assert not [d for d in docs if d["metadata"]["name"].endswith("-celery-routes")]
+    assert "REF_CELERY_ROUTES" not in _container_env(docs, "esmvaltool")
+    api = find(docs, "Deployment", "-api")["spec"]["template"]["spec"]["containers"][0]
+    assert "REF_CELERY_ROUTES" not in {e["name"] for e in api.get("env", [])}
+
+
+def test_celery_routes_render_as_valid_toml():
+    docs = render_with(SIZE_VALUES)
+    configmap = find(docs, "ConfigMap", "-celery-routes")
+    table = tomllib.loads(configmap["data"]["routes.toml"])
+    assert table["esmvaltool"]["rules"][0]["queue"] == "esmvaltool-large"
+
+
+@pytest.mark.parametrize("component", ["-api", "-esmvaltool", "-orchestrator"])
+def test_celery_routes_are_mounted_where_the_executor_can_run(component):
+    # The API triggers solves, and an operator may exec `ref solve` in a worker pod,
+    # so the table rides along everywhere.
+    docs = render_with(SIZE_VALUES)
+    container = find(docs, "Deployment", component)["spec"]["template"]["spec"]["containers"][0]
+    env = {e["name"]: e["value"] for e in container["env"]}
+    path = env["REF_CELERY_ROUTES"]
+    mounts = {m["name"]: m["mountPath"] for m in container["volumeMounts"]}
+    assert path == f"{mounts['celery-routes']}/routes.toml"
+
+
+def test_worker_instance_can_run_a_provider_under_a_different_name():
+    docs = render_with(SIZE_VALUES)
+    args = _worker_args(docs, "esmvaltool-large")
+    assert args[args.index("--provider") + 1] == "esmvaltool"
+    assert "--queues=esmvaltool-large,esmvaltool-medium" in args
+    # The queue override must follow the `--` separator to reach the celery worker.
+    assert args.index("--") < args.index("--queues=esmvaltool-large,esmvaltool-medium")
+
+
+def test_split_esmvaltool_instances_get_their_own_config():
+    docs = render_with(SIZE_VALUES)
+    large = yaml.safe_load(find(docs, "ConfigMap", "-esmvaltool-large-config")["data"]["config.yaml"])
+    assert large["max_parallel_tasks"] == 4
+    default = yaml.safe_load(find(docs, "ConfigMap", "-esmvaltool-config")["data"]["config.yaml"])
+    assert default["max_parallel_tasks"] == 2
+    assert _container_env(docs, "esmvaltool-large")["ESMVALTOOL_CONFIG_DIR"] == "/etc/esmvaltool"
+
+
+def test_size_values_route_to_no_orphan_queue():
+    assert_no_orphan_queues(render_with(SIZE_VALUES))
+
+
+@pytest.mark.parametrize("values", VALUES_FILES)
+def test_shipped_values_route_to_no_orphan_queue(values):
+    assert_no_orphan_queues(render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}", values=values))
+
+
+def test_orphan_queue_guard_detects_a_queue_with_no_consumer():
+    values = {
+        "api": {"env": {"SECRET_KEY": PLACEHOLDER_SECRET}},
+        "celeryRoutes": '[esmvaltool]\nrules = [ { match = "*", queue = "esmvaltool-huge" } ]\n',
+    }
+    with pytest.raises(AssertionError, match="esmvaltool-huge"):
+        assert_no_orphan_queues(render_with(values))
