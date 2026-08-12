@@ -445,9 +445,9 @@ We need to be resiliant to workers failing.
 | `CELERY_TASK_TIME_LIMIT`            | Hard kill timeout in seconds                     | `21600` (6 hours)   |
 | `CELERY_TASK_SOFT_TIME_LIMIT`       | Soft timeout (raises exception for cleanup)      | `19800` (5.5 hours) |
 | `CELERY_TASK_MAX_RETRIES`           | Max retries before permanent failure             | `2`                 |
-| `CELERY_VISIBILITY_TIMEOUT`         | Redis redelivery timeout (must be >= time limit) | Matches time limit  |
+| `CELERY_VISIBILITY_TIMEOUT`         | Redis redelivery timeout (must exceed time limit)| 5 minutes past it   |
 | `CELERY_WORKER_PREFETCH_MULTIPLIER` | Tasks prefetched per worker process              | `1`                 |
-| `CELERY_WORKER_CONCURRENCY`         | Worker processes per pod                         | CPU count           |
+| `CELERY_WORKER_CONCURRENCY`         | Worker processes per pod                         | `1`, via `--concurrency` |
 | `CELERY_RESULT_EXPIRES`             | Result expiry in seconds                         | `172800` (48 hours) |
 | `CELERY_WORKER_MAX_TASKS_PER_CHILD` | Recycle worker after N tasks (memory leak guard) | None (no limit)     |
 | `CELERY_WORKER_MAX_MEMORY_PER_CHILD`| Max resident memory per worker in KB             | None (no limit)     |
@@ -487,23 +487,26 @@ providers:
       # ESMValTool diagnostics can run for hours
       CELERY_TASK_TIME_LIMIT: "21600"        # 6 hours
       CELERY_TASK_SOFT_TIME_LIMIT: "19800"   # 5.5 hours
-      CELERY_VISIBILITY_TIMEOUT: "21600"
+      CELERY_VISIBILITY_TIMEOUT: "21900"     # 5 minutes past the hard limit
   ilamb:
     env:
       # ILAMB diagnostics are typically fast
       CELERY_TASK_TIME_LIMIT: "1800"         # 30 minutes
       CELERY_TASK_SOFT_TIME_LIMIT: "1500"    # 25 minutes
-      CELERY_VISIBILITY_TIMEOUT: "1800"
+      CELERY_VISIBILITY_TIMEOUT: "2100"      # 5 minutes past the hard limit
   pmp:
     env:
       CELERY_TASK_TIME_LIMIT: "7200"         # 2 hours
       CELERY_TASK_SOFT_TIME_LIMIT: "6600"    # 1 hour 50 min
-      CELERY_VISIBILITY_TIMEOUT: "7200"
+      CELERY_VISIBILITY_TIMEOUT: "7500"      # 5 minutes past the hard limit
 ```
 
-**Important:** `CELERY_VISIBILITY_TIMEOUT` must always be >= `CELERY_TASK_TIME_LIMIT`.
+**Important:** `CELERY_VISIBILITY_TIMEOUT` must always sit above `CELERY_TASK_TIME_LIMIT`, not merely equal it.
 If a task runs longer than the visibility timeout,
-Redis will redeliver it to another worker, causing duplicate execution. See the `celeryconf/base.py` docstring for details.
+Redis redelivers it to another worker and it executes twice.
+Equal values leave no margin, because `task_acks_late` means the worker stores the timeout result
+before it acknowledges the task, and the broker can redeliver during that gap.
+See the `celeryconf/base.py` docstring for details.
 
 ### Memory Use Control
 

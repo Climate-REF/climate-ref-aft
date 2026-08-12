@@ -214,7 +214,7 @@ defaults:
     # Celery reliability tuning (uncomment to override base.py defaults)
     # CELERY_TASK_TIME_LIMIT: "21600"          # Hard kill after 6 hours
     # CELERY_TASK_SOFT_TIME_LIMIT: "19800"     # Soft limit at 5.5 hours
-    # CELERY_VISIBILITY_TIMEOUT: "21600"       # Must be >= CELERY_TASK_TIME_LIMIT
+    # CELERY_VISIBILITY_TIMEOUT: "21900"       # Must be above CELERY_TASK_TIME_LIMIT
     # CELERY_WORKER_PREFETCH_MULTIPLIER: "1"
     # CELERY_RESULT_EXPIRES: "172800"          # 48 hours
     # CELERY_WORKER_MAX_TASKS_PER_CHILD: "50"  # Recycle workers to prevent memory leaks
@@ -317,8 +317,9 @@ defaults:
 #  If no overrides are provided, the provider will be deployed with the defaults above.
 #
 # Each provider carries the pod size and time limit its own diagnostics need.
-# CELERY_VISIBILITY_TIMEOUT must stay >= CELERY_TASK_TIME_LIMIT,
-# otherwise Redis redelivers a task that is still running and it executes twice.
+# CELERY_VISIBILITY_TIMEOUT must stay above CELERY_TASK_TIME_LIMIT, not merely equal to it.
+# task_acks_late means the worker stores the timeout result before it acknowledges the task,
+# and an equal window lets the broker redeliver during that gap, so the task executes twice.
 providers:
   # The orchestrator queues and tracks executions rather than running them,
   # so it needs far less than a diagnostic worker.
@@ -344,7 +345,7 @@ providers:
     env:
       CELERY_TASK_TIME_LIMIT: "21600"          # 6 hours
       CELERY_TASK_SOFT_TIME_LIMIT: "19800"     # 5.5 hours
-      CELERY_VISIBILITY_TIMEOUT: "21600"
+      CELERY_VISIBILITY_TIMEOUT: "21900"     # 5 minutes past the hard limit
     # Esmvalcore configuration written to a ConfigMap and mounted at configMountPath/config.yaml,
     # with configEnvVar set on the worker container so esmvalcore reads it.
     # Without this, esmvalcore auto-detects all available cores and causes OOMs.
@@ -378,7 +379,7 @@ providers:
     env:
       CELERY_TASK_TIME_LIMIT: "7200"           # 2 hours
       CELERY_TASK_SOFT_TIME_LIMIT: "6600"      # 1 hour 50 minutes
-      CELERY_VISIBILITY_TIMEOUT: "7200"
+      CELERY_VISIBILITY_TIMEOUT: "7500"      # 5 minutes past the hard limit
       # PMP recommends the synchronous Dask scheduler when running multiple executions on the same machine.
       # The threaded scheduler crashes under excessive parallelism. See Climate-REF/climate-ref#437 and
       # https://climate-ref.readthedocs.io/en/latest/how-to-guides/control-memory-use/
@@ -396,7 +397,7 @@ providers:
     env:
       CELERY_TASK_TIME_LIMIT: "1800"           # 30 minutes
       CELERY_TASK_SOFT_TIME_LIMIT: "1500"      # 25 minutes
-      CELERY_VISIBILITY_TIMEOUT: "1800"
+      CELERY_VISIBILITY_TIMEOUT: "2100"      # 5 minutes past the hard limit
       # ILAMB/IOMB diagnostics are restricted to the synchronous Dask scheduler upstream.
       # Setting it explicitly is harmless and matches the documented recommendation.
       DASK_SCHEDULER: synchronous
