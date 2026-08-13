@@ -81,7 +81,9 @@ jobs:
     - name: Wait for pods
       run: |
         echo "Waiting for deployments to be ready..."
-        kubectl wait --for=condition=available deployment --all --timeout=120s
+        # Init containers hold every worker until the broker hostname resolves,
+        # and DNS can take a couple of minutes to come up on a fresh minikube.
+        kubectl wait --for=condition=available deployment --all --timeout=300s
         kubectl get pods
     - name: Verify all pods healthy
       run: |
@@ -125,7 +127,11 @@ jobs:
         enableCrossOsArchive: true
     - name: Set permissions for cached data
       run: |
+        # The pods run as uid 1000, but the cache action restores files owned by the runner user,
+        # so everything the previous run cached (e.g. /ref/log) must be handed back
+        # before the migrate hook writes to it.
         sudo install -d --owner=1000 --group=1000 ${GITHUB_WORKSPACE}/cache/ref-config
+        sudo chown -R 1000:1000 ${GITHUB_WORKSPACE}/cache/ref-config
     - name: Start minikube
       uses: medyagh/setup-minikube@latest
       with:
