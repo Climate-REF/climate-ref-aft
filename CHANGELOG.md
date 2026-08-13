@@ -7,6 +7,48 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.5.3 (2026-08-13)
+
+### Features
+
+- Adds size-based Celery queue routing to the chart.
+  A new `celeryRoutes` value writes a TOML routing table to a ConfigMap,
+  exposed to the API and every worker via `REF_CELERY_ROUTES`.
+  Worker instances under `providers.*` gain `provider` and `queues` fields,
+  so differently sized pools of one provider can consume size-specific queues
+  such as `esmvaltool-large`.
+  Requires climate-ref v0.17.0 or newer. Without `celeryRoutes` set,
+  behaviour is unchanged. ([#35](https://github.com/Climate-REF/climate-ref-aft/pulls/35))
+
+### Improvements
+
+- Makes the chart-managed provider config generic, so any provider can carry one rather than esmvaltool alone.
+  `config` is the document, `configMountPath` is the directory it mounts into, and `configEnvVar` optionally points an environment variable at it.
+  Provider templates now resolve their values through a single `ref.providerSpec` helper, so override precedence is defined in one place.
+  The ServiceAccount a component mounts and the one the chart creates for it are both resolved by a single `ref.serviceAccountName` helper, so the two cannot disagree. ([#33](https://github.com/Climate-REF/climate-ref-aft/pulls/33))
+- Ships resource requests, limits and task time limits for every pod rather than leaving them unset. ([#34](https://github.com/Climate-REF/climate-ref-aft/pulls/34))
+- Bumps the API + frontend image (`climate-ref-frontend`) from ``v0.4.0`` to ``v0.4.1``.
+  v0.4.1 bundles climate-ref 0.17.0, matching the pinned components,
+  so the API reads a database that carries the 0.17.0 migrations,
+  including the new per-execution resource columns. ([#35](https://github.com/Climate-REF/climate-ref-aft/pulls/35))
+- Bumps the pinned climate-ref core, celery, esmvaltool, pmp, and ilamb components
+  and the worker container image (helm + docker-compose) from ``v0.16.2`` to ``v0.17.0``.
+  This release carries the Celery queue routing table and the per-execution resource capture
+  (`ref executions resources`) that informs the slug-to-size routing rules. ([#35](https://github.com/Climate-REF/climate-ref-aft/pulls/35))
+- Moves the integration job onto the arc-climate-ref runner scale set.
+  Each run now starts from a fresh database on ephemeral storage,
+  so one branch's schema migrations can no longer poison another branch's runs. ([#37](https://github.com/Climate-REF/climate-ref-aft/pulls/37))
+
+### Bug Fixes
+
+- Keys each provider worker's `checksum/config` annotation to its own Secret rather than to every provider's.
+  A change to one provider's `env` no longer restarts the other workers and re-runs their in-flight executions.
+  The annotations also cover a provider's chart-managed `config`, so a config change now restarts the worker that mounts it. ([#33](https://github.com/Climate-REF/climate-ref-aft/pulls/33))
+- Wait for Dragonfly before starting the Celery workers.
+  A worker that connected while the broker was still starting could wedge silently,
+  leaving its queue without a consumer and hanging the CI Simple Solve step. ([#37](https://github.com/Climate-REF/climate-ref-aft/pulls/37))
+
+
 ## climate-ref-aft 0.5.2 (2026-07-28)
 
 ### Features
