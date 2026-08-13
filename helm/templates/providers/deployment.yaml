@@ -33,9 +33,15 @@
   {{- $volumeMounts = append $volumeMounts (dict "name" (printf "%s-config" $instance) "mountPath" $spec.configMountPath "readOnly" true) -}}
   {{- $volumes = append $volumes (dict "name" (printf "%s-config" $instance) "configMap" (dict "name" $configName)) -}}
 {{- end -}}
+{{- /* Container env beats envFrom, so a values override cannot detach the mounted files. */ -}}
+{{- $env := list -}}
+{{- if and $spec.config $spec.configEnvVar -}}
+  {{- $env = append $env (dict "name" $spec.configEnvVar "value" $spec.configMountPath) -}}
+{{- end -}}
 {{- if $.Values.celeryRoutes -}}
   {{- $volumeMounts = append $volumeMounts (fromYaml (include "ref.celeryRoutesVolumeMount" $)) -}}
   {{- $volumes = append $volumes (fromYaml (include "ref.celeryRoutesVolume" $)) -}}
+  {{- $env = concat $env (fromYamlArray (include "ref.celeryRoutesEnv" $)) -}}
 {{- end -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -96,16 +102,9 @@ spec:
         imagePullPolicy: {{ $spec.image.pullPolicy }}
         args:
         {{- toYaml $args | nindent 8 }}
-        {{- if or (and $spec.config $spec.configEnvVar) $.Values.celeryRoutes }}
-        {{- /* Container env beats envFrom, so a values override cannot detach the mounted files. */}}
+        {{- with $env }}
         env:
-        {{- if and $spec.config $spec.configEnvVar }}
-        - name: {{ $spec.configEnvVar }}
-          value: {{ $spec.configMountPath | quote }}
-        {{- end }}
-        {{- if $.Values.celeryRoutes }}
-        {{- include "ref.celeryRoutesEnv" $ | nindent 8 }}
-        {{- end }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
         envFrom:
         - secretRef:

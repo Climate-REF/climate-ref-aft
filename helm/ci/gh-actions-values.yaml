@@ -39,7 +39,8 @@ defaults:
   # The chart defaults size a pod for a real diagnostic, which no CI runner has.
   # The e2e solve runs one small diagnostic per provider on sample data,
   # so the pods need enough to run that, not a production workload.
-  # Each provider is given the same block below, because a provider's own resources win over the defaults.
+  # A provider's own resources win over the defaults,
+  # so each provider that needs nothing special reuses this block below.
   resources: &testResources
     requests:
       cpu: 100m
@@ -77,16 +78,14 @@ providers:
       limits:
         cpu: 2
         memory: 3Gi
+    # Only the leaves that differ from the chart default, helm deep-merges the rest.
     config:
       max_parallel_tasks: 1
       dask:
-        use: local_distributed
         profiles:
           local_distributed:
             cluster:
-              type: distributed.LocalCluster
               n_workers: 1
-              threads_per_worker: 2
               memory_limit: 1GiB
   pmp:
     resources: *testResources

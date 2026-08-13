@@ -147,12 +147,14 @@ redis://{{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ $dragonfly.se
 
 {{/*
 Celery routing table wiring, shared by the API and worker deployments.
-The mount path and the REF_CELERY_ROUTES value live only in these three defines,
+The mount and the REF_CELERY_ROUTES value both build on ref.celeryRoutesDir,
 so the env var and the mounted file cannot drift apart.
 */}}
+{{- define "ref.celeryRoutesDir" -}}/etc/climate-ref/routes{{- end }}
+
 {{- define "ref.celeryRoutesVolumeMount" -}}
 name: celery-routes
-mountPath: /etc/climate-ref/routes
+mountPath: {{ include "ref.celeryRoutesDir" . }}
 readOnly: true
 {{- end }}
 
@@ -164,5 +166,5 @@ configMap:
 
 {{- define "ref.celeryRoutesEnv" -}}
 - name: REF_CELERY_ROUTES
-  value: /etc/climate-ref/routes/routes.toml
+  value: {{ include "ref.celeryRoutesDir" . }}/routes.toml
 {{- end }}
