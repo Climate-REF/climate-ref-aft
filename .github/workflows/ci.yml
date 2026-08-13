@@ -91,10 +91,6 @@ jobs:
       - name: Render tests
         run: uv run pytest tests/test_helm_render.py -v
 
-  # Integration test on the home-infra runner scale set.
-  # The runner pods provide REF_CONFIGURATION on ephemeral storage,
-  # so every run starts from a fresh database,
-  # while conda environments persist in the shared REF_SOFTWARE_ROOT cache.
   integration:
     if: github.repository == 'Climate-REF/climate-ref-aft'
     runs-on: arc-climate-ref
