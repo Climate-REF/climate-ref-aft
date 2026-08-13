@@ -219,6 +219,32 @@ jobs:
         echo ""
         echo "=== API describe ==="
         kubectl describe deployment/test-climate-ref-aft-api || true
+    - name: Capture Broker State on Failure
+      if: failure()
+      # The recurring failure mode is a task submitted to a queue and never traced by its worker.
+      # The queue lengths tell whether the task is still sitting in the broker,
+      # and the inspect calls tell whether the worker's consumer is alive and what it holds.
+      run: |
+        echo "=== Broker queue state ==="
+        kubectl exec -i deployment/test-climate-ref-aft-orchestrator -- uv run python <<'EOF' || true
+        import os
+        import redis
+        r = redis.Redis.from_url(os.environ["CELERY_BROKER_URL"])
+        for q in ("esmvaltool", "pmp", "ilamb", "celery"):
+            print(q, r.llen(q))
+        print("unacked", r.hlen("unacked"))
+        print("unacked_index", r.zcard("unacked_index"))
+        EOF
+        echo ""
+        echo "=== Celery inspect ==="
+        kubectl exec -i deployment/test-climate-ref-aft-orchestrator -- uv run python <<'EOF' || true
+        from climate_ref_celery.app import app
+        insp = app.control.inspect(timeout=10)
+        print("ping", insp.ping())
+        print("active", insp.active())
+        print("reserved", insp.reserved())
+        print("active_queues", insp.active_queues())
+        EOF
     - name: Capture Worker Logs on Failure
       if: failure()
       run: |
