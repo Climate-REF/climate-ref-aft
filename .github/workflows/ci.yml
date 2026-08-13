@@ -91,10 +91,9 @@ jobs:
       - name: Render tests
         run: uv run pytest tests/test_helm_render.py -v
 
-  # Integration test on self-hosted runner (requires conda environments)
   integration:
     if: github.repository == 'Climate-REF/climate-ref-aft'
-    runs-on: self-hosted
+    runs-on: arc-climate-ref
     needs: [install-pinned]
     steps:
       - uses: actions/checkout@v4

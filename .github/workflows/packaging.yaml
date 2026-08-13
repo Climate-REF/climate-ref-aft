@@ -164,6 +164,13 @@ jobs:
       run: |
         kubectl exec deployment/test-climate-ref-aft-orchestrator -- ref datasets fetch-data --registry sample-data --output-directory /ref/sample-data
 
+    - name: Make cached data readable for the save
+      run: |
+        # The pods write as uid 1000 and some files land mode 600,
+        # which the runner user cannot read.
+        # tar then silently drops them from the archive and the cache goes hollow.
+        sudo chmod -R a+rX ${GITHUB_WORKSPACE}/cache/ref-config
+
     - name: Cache Sample Data (Save)
       uses: actions/cache/save@v5
       with:

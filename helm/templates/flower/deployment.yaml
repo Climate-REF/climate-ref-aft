@@ -39,20 +39,8 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if include "ref.dragonflyEnabled" . }}
-      initContainers:
-      - name: wait-for-dragonfly
-        image: busybox:1.37
-        command:
-        - sh
-        - -c
-        - |
-          echo "Waiting for Dragonfly at {{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ .Values.dragonfly.service.port | default 6379 }}..."
-          until nc -z {{ include "dragonfly.fullname" .Subcharts.dragonfly }} {{ .Values.dragonfly.service.port | default 6379 }}; do
-            echo "Dragonfly not ready, retrying in 2s..."
-            sleep 2
-          done
-          echo "Dragonfly is ready"
+      {{- with include "ref.waitForDragonfly" . }}
+      {{- . | nindent 6 }}
       {{- end }}
       containers:
       - name: flower
