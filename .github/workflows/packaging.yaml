@@ -211,6 +211,13 @@ jobs:
         check /utils/health-check/
         check /cmip7-aft-diagnostics/ 1
         check /executions/ 1
+    - name: Capture Migrate Logs on Failure
+      if: failure()
+      # The migrate hook runs before any deployment exists,
+      # so a pre-install failure leaves only its pods to inspect.
+      run: |
+        kubectl describe job/test-climate-ref-aft-migrate || true
+        kubectl logs -l job-name=test-climate-ref-aft-migrate --tail=200 || true
     - name: Capture API logs on failure
       if: failure()
       run: |
