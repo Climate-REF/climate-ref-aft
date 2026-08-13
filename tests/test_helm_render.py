@@ -615,7 +615,9 @@ def test_size_values_route_to_no_orphan_queue():
 
 
 @pytest.mark.parametrize("values", VALUES_FILES)
-def test_shipped_values_route_to_no_orphan_queue(values):
+def test_orphan_queue_guard_runs_against_shipped_values(values):
+    # Trivially green today because no shipped values file sets celeryRoutes.
+    # The guard bites when one gains a routing table.
     assert_no_orphan_queues(render(f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}", values=values))
 
 
