@@ -600,15 +600,20 @@ def _routed_queues(docs: list[dict]) -> set[str]:
             continue
         assert isinstance(entry, dict), f"unexpected top-level routing table key {provider!r}"
         templates = [rule["queue"] for rule in entry.get("rules", [])]
-        templates.append(entry.get("default") or top_default or "{provider}")
+        # An entry with no default falls back to the bare provider queue.
+        # The top-level default never applies to a provider with its own entry.
+        templates.append(entry.get("default") or "{provider}")
         routed.update(template.format(provider=provider) for template in templates)
 
-    # The top-level default also applies to providers with no table entry.
-    if top_default:
-        for worker in _worker_deployments(docs):
-            args = worker["spec"]["template"]["spec"]["containers"][0]["args"]
-            if "--provider" in args:
-                routed.add(top_default.format(provider=args[args.index("--provider") + 1]))
+    # A provider with no table entry routes via the top-level default, or its bare queue.
+    for worker in _worker_deployments(docs):
+        args = worker["spec"]["template"]["spec"]["containers"][0]["args"]
+        if "--provider" not in args:
+            continue
+        provider = args[args.index("--provider") + 1]
+        if provider in table:
+            continue
+        routed.add((top_default or "{provider}").format(provider=provider))
     return routed
 
 

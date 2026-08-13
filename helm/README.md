@@ -418,7 +418,7 @@ List values such as `volumes` and `volumeMounts` are replaced wholesale.
 
 ### Size-Based Queues
 
-By default every execution for a provider lands on a single queue named after the provider,
+By default, every execution for a provider lands on a single queue named after the provider,
 so all workers for that provider must be sized for its largest diagnostic.
 Two values split that queue by size, letting differently sized worker pools consume it:
 
