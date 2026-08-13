@@ -230,8 +230,11 @@ jobs:
         import os
         import redis
         r = redis.Redis.from_url(os.environ["CELERY_BROKER_URL"])
-        for q in ("esmvaltool", "pmp", "ilamb", "celery"):
-            print(q, r.llen(q))
+        # Celery queues are plain lists, so every list key is a queue.
+        # Discovering them covers any size queues the routing table produces.
+        for key in sorted(r.scan_iter()):
+            if r.type(key) == b"list":
+                print(key.decode(), r.llen(key))
         print("unacked", r.hlen("unacked"))
         print("unacked_index", r.zcard("unacked_index"))
         EOF
