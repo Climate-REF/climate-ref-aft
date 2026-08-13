@@ -87,7 +87,7 @@ externalBroker:
 # This places each execution on a queue such as esmvaltool-large,
 # so differently sized worker instances (see `queues` under `defaults`) can consume them.
 # See https://climate-ref.readthedocs.io/en/latest/configuration/ for the file format.
-# Requires climate-ref newer than v0.16.2. Older releases ignore the variable
+# Requires climate-ref v0.17.0 or newer. Older releases ignore the variable
 # and keep sending every execution to the bare provider queue.
 # Empty disables routing entirely.
 #
@@ -247,7 +247,7 @@ defaults:
   image:
     repository: ghcr.io/climate-ref/climate-ref
     pullPolicy: IfNotPresent
-    tag: v0.16.2
+    tag: v0.17.0
 
   annotations: {}
 

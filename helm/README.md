@@ -280,7 +280,7 @@ These defaults apply to all providers unless overridden per-provider.
 | --------------------------- | ------------------------- | --------------------------------- |
 | `defaults.replicaCount`     | Number of worker replicas | `1`                               |
 | `defaults.image.repository` | Worker image repository   | `ghcr.io/climate-ref/climate-ref` |
-| `defaults.image.tag`        | Worker image tag          | `v0.16.2`                         |
+| `defaults.image.tag`        | Worker image tag          | `v0.17.0`                         |
 | `defaults.image.pullPolicy` | Image pull policy         | `IfNotPresent`                    |
 | `defaults.resources`        | Resource requests/limits  | `{}`                              |
 | `defaults.nodeSelector`     | Node selector             | `{}`                              |
@@ -404,7 +404,7 @@ The render test suite checks this for values files shipped with the chart.
 Keep the bare provider queue in some instance's `queues` while executions
 submitted before the table are still draining.
 
-Routing requires a climate-ref release newer than v0.16.2 in both the API and worker images.
+Routing requires climate-ref v0.17.0 or newer in both the API and worker images.
 Older releases ignore `REF_CELERY_ROUTES` and keep sending everything to the bare provider queue,
 so enable the table only after the images are upgraded.
 See the [climate-ref configuration docs](https://climate-ref.readthedocs.io/en/latest/configuration/)
