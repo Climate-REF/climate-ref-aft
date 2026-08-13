@@ -131,8 +131,6 @@ true
 {{/*
 Init container that holds a pod back until the bundled Dragonfly answers on its port,
 because a Celery client that connects while the broker is still starting can wedge silently.
-Emits the whole initContainers block, or nothing when Dragonfly is not deployed,
-so callers must wrap the include in `with`.
 Takes the root context.
 */}}
 {{- define "ref.waitForDragonfly" -}}
