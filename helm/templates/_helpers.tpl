@@ -66,6 +66,53 @@ SECRET_KEY. Operators must supply a strong, unique api.env.SECRET_KEY.
 {{- end -}}
 
 {{/*
+Resolve the ServiceAccount name for a component.
+Takes a dict of `root`, `component` (the name suffix) and `serviceAccount` (the component's block).
+An explicit name wins, otherwise the chart names the account after the component.
+Returns an empty string when the component neither names nor creates one,
+so a Deployment can omit the field via `with` and fall back to the namespace default.
+Both the Deployment that mounts the account and the template that creates it resolve it here,
+because a pod naming an account the chart does not create is not admitted.
+*/}}
+{{- define "ref.serviceAccountName" -}}
+{{- $sa := .serviceAccount | default dict -}}
+{{- if $sa.name -}}
+{{ $sa.name }}
+{{- else if $sa.create -}}
+{{ include "ref.fullname" .root }}-{{ .component }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Resolve a provider's effective spec: the shared defaults with the provider's own values on top.
+Takes a dict of `root` (the top level context) and `spec` (the provider's own values).
+Every provider template must resolve its spec through here,
+so that override precedence is defined in one place rather than per object.
+Returns YAML, so callers pipe it through `fromYaml`.
+*/}}
+{{- define "ref.providerSpec" -}}
+{{- toYaml (mergeOverwrite (deepCopy .root.Values.defaults) (.spec | default dict)) -}}
+{{- end -}}
+
+{{/*
+Render one provider's Secret.
+Takes a dict of `root`, `provider` and `spec` (already resolved through ref.providerSpec).
+The Deployment hashes this to key its pods to their own environment,
+so a change to one provider does not restart the others.
+*/}}
+{{- define "ref.providerSecret" -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "ref.fullname" .root }}-{{ .provider }}
+  labels:
+    app.kubernetes.io/component: {{ .provider }}
+    {{- include "ref.labels" .root | nindent 4 }}
+stringData:
+  {{- tpl (toYaml .spec.env) .root | nindent 2 }}
+{{- end -}}
+
+{{/*
 Report whether the bundled Dragonfly subchart is deployed.
 An absent dragonfly.enabled means enabled, which is how Helm reads the subchart condition,
 so that `helm upgrade --reuse-values` from a release predating the key behaves unchanged.

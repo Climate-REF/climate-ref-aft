@@ -41,7 +41,7 @@ The `versions.toml` file pins the exact versions of each component in a given re
 
 ```bash
 # Install the chart from the OCI registry
-helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.5.1
+helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.5.2
 ```
 
 ## Development

@@ -1,4 +1,11 @@
 api:
+  # The API starts and answers a health check here, it does not serve real traffic.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
   env:
     SECRET_KEY: ci-test-secret
     # Diagnostic providers (climate_ref_ilamb / esmvaltool) create config
@@ -28,6 +35,17 @@ flower:
 defaults:
   podSecurityContext:
     runAsUser: 1000
+
+  # The chart defaults size a pod for a real diagnostic, which no CI runner has.
+  # These pods only need to start and answer a ping.
+  # Each provider is given the same block below, because a provider's own resources win over the defaults.
+  resources: &testResources
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
   volumes:
   - name: gha-cached
     hostPath:
@@ -42,7 +60,26 @@ defaults:
     mountPath: /tmp
     readOnly: false
 
+providers:
+  orchestrator:
+    resources: *testResources
+  esmvaltool:
+    resources: *testResources
+  pmp:
+    resources: *testResources
+  ilamb:
+    resources: *testResources
+
 dragonfly:
+  # Dragonfly counts its io threads from the CPU limit and demands 256MiB of maxmemory per thread,
+  # so the CPU limit has to come down alongside maxmemory or it refuses to start.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
   extraArgs:
   - --proactor_threads=1
-  - --maxmemory=256mb
+  - --maxmemory=512mb

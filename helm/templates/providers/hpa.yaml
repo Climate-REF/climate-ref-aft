@@ -1,5 +1,5 @@
 {{- range $instance, $spec := (omit .Values.providers "defaults") -}}
-{{- $spec := mergeOverwrite (deepCopy $.Values.defaults) $spec -}}
+{{- $spec := include "ref.providerSpec" (dict "root" $ "spec" $spec) | fromYaml -}}
 {{- if and $spec.autoscaling $spec.autoscaling.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler

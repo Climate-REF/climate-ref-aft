@@ -80,9 +80,9 @@ Releases are created via the **Bump version** workflow in GitHub Actions:
 
 1. Go to **Actions** > **Bump version** > **Run workflow**
 2. Choose the bump rule:
-   - `patch` -- bug fixes, config tweaks (e.g. `0.1.0` -> `0.1.1`)
-   - `minor` -- new providers, diagnostics, component upgrades (e.g. `0.1.1` -> `0.2.0`)
-   - `major` -- breaking changes to the Helm values interface (e.g. `0.2.0` -> `1.0.0`)
+   - `patch`: bug fixes, config tweaks (e.g. `0.1.0` -> `0.1.1`)
+   - `minor`: new providers, diagnostics, component upgrades (e.g. `0.1.1` -> `0.2.0`)
+   - `major`: breaking changes to the Helm values interface (e.g. `0.2.0` -> `1.0.0`)
 
 The workflow will:
 

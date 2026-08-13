@@ -1,24 +1,37 @@
 {{- range $instance, $spec := (omit .Values.providers "defaults") -}}
-{{- $spec := mergeOverwrite (deepCopy $.Values.defaults) $spec -}}
+{{- $spec := include "ref.providerSpec" (dict "root" $ "spec" $spec) | fromYaml -}}
 {{- /* The instance name is the deployment identity, the provider is what the worker runs. */ -}}
 {{- $provider := $spec.provider | default $instance -}}
 {{- $args := list "celery" "start-worker" "--loglevel" "DEBUG" -}}
-{{- if ne $provider "orchestrator" -}} {{- $args = concat $args (list "--provider" $provider) -}} {{- end -}}
+{{- if ne $provider "orchestrator" -}}
+  {{- $args = concat $args (list "--provider" $provider) -}}
+{{- end -}}
 {{- /* Celery worker options passed after the `--` separator (e.g. --concurrency, --pool). */ -}}
 {{- $workerArgs := list -}}
-{{- if $spec.concurrency -}} {{- $workerArgs = append $workerArgs (printf "--concurrency=%v" $spec.concurrency) -}} {{- end -}}
-{{- /* A repeated --queues wins over the one start-worker derives from the provider, */ -}}
-{{- /* so this must precede extraArgs to stay overridable. */ -}}
-{{- with $spec.queues -}} {{- $workerArgs = append $workerArgs (printf "--queues=%s" (join "," .)) -}} {{- end -}}
-{{- with $spec.extraArgs -}} {{- $workerArgs = concat $workerArgs . -}} {{- end -}}
-{{- if $workerArgs -}} {{- $args = concat $args (list "--") $workerArgs -}} {{- end -}}
-{{- /* Chart-managed esmvaltool config: auto-mount when the instance sets `config`. */ -}}
+{{- if $spec.concurrency -}}
+  {{- $workerArgs = append $workerArgs (printf "--concurrency=%v" $spec.concurrency) -}}
+{{- end -}}
+{{- /* A repeated --queues wins over the one start-worker derives from the provider,
+       so this must precede extraArgs to stay overridable. */ -}}
+{{- with $spec.queues -}}
+  {{- $workerArgs = append $workerArgs (printf "--queues=%s" (join "," .)) -}}
+{{- end -}}
+{{- with $spec.extraArgs -}}
+  {{- $workerArgs = concat $workerArgs . -}}
+{{- end -}}
+{{- if $workerArgs -}}
+  {{- $args = concat $args (list "--") $workerArgs -}}
+{{- end -}}
+{{- /* Chart-managed provider config: auto-mount when the instance sets `config`. */ -}}
 {{- $volumes := $spec.volumes | default list -}}
 {{- $volumeMounts := $spec.volumeMounts | default list -}}
-{{- $esmvaltoolConfig := and (eq $provider "esmvaltool") $spec.config -}}
-{{- if $esmvaltoolConfig -}}
-  {{- $volumeMounts = append $volumeMounts (dict "name" "esmvaltool-config" "mountPath" "/etc/esmvaltool" "readOnly" true) -}}
-  {{- $volumes = append $volumes (dict "name" "esmvaltool-config" "configMap" (dict "name" (printf "%s-%s-config" (include "ref.fullname" $) $instance))) -}}
+{{- $configName := printf "%s-%s-config" (include "ref.fullname" $) $instance -}}
+{{- if and $spec.config (not $spec.configMountPath) -}}
+  {{- fail (printf "providers.%s: config is set, so configMountPath must be set too" $instance) -}}
+{{- end -}}
+{{- if $spec.config -}}
+  {{- $volumeMounts = append $volumeMounts (dict "name" (printf "%s-config" $instance) "mountPath" $spec.configMountPath "readOnly" true) -}}
+  {{- $volumes = append $volumes (dict "name" (printf "%s-config" $instance) "configMap" (dict "name" $configName)) -}}
 {{- end -}}
 {{- if $.Values.celeryRoutes -}}
   {{- $volumeMounts = append $volumeMounts (fromYaml (include "ref.celeryRoutesVolumeMount" $)) -}}
@@ -46,10 +59,15 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/providers/secret.yaml") $ | sha256sum }}
       {{- with $spec.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
+        {{- /* This instance's own Secret, so a change to another instance does not restart these pods.
+               Rendered last, so a podAnnotations override cannot detach a pod from its rollout trigger. */}}
+        checksum/config: {{ include "ref.providerSecret" (dict "root" $ "provider" $instance "spec" $spec) | sha256sum }}
+        {{- if $spec.config }}
+        checksum/configmap: {{ toYaml $spec.config | sha256sum }}
+        {{- end }}
       labels:
         app.kubernetes.io/component: {{ $instance }}
         {{- include "ref.labels" $ | nindent 8 }}
@@ -61,10 +79,8 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if and $spec.serviceAccount $spec.serviceAccount.name }}
-      serviceAccountName: {{ $spec.serviceAccount.name }}
-      {{- else if and $spec.serviceAccount $spec.serviceAccount.create }}
-      serviceAccountName: {{ include "ref.fullname" $ }}-{{ $instance }}
+      {{- with (include "ref.serviceAccountName" (dict "root" $ "component" $instance "serviceAccount" $spec.serviceAccount)) }}
+      serviceAccountName: {{ . }}
       {{- end }}
       {{- with $spec.podSecurityContext }}
       securityContext:
@@ -80,12 +96,12 @@ spec:
         imagePullPolicy: {{ $spec.image.pullPolicy }}
         args:
         {{- toYaml $args | nindent 8 }}
-        {{- if or $esmvaltoolConfig $.Values.celeryRoutes }}
+        {{- if or (and $spec.config $spec.configEnvVar) $.Values.celeryRoutes }}
         {{- /* Container env beats envFrom, so a values override cannot detach the mounted files. */}}
         env:
-        {{- if $esmvaltoolConfig }}
-        - name: ESMVALTOOL_CONFIG_DIR
-          value: /etc/esmvaltool
+        {{- if and $spec.config $spec.configEnvVar }}
+        - name: {{ $spec.configEnvVar }}
+          value: {{ $spec.configMountPath | quote }}
         {{- end }}
         {{- if $.Values.celeryRoutes }}
         {{- include "ref.celeryRoutesEnv" $ | nindent 8 }}

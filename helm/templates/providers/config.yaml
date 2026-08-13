@@ -1,7 +1,6 @@
 {{- range $instance, $spec := (omit .Values.providers "defaults") -}}
-{{- $spec := mergeOverwrite (deepCopy $.Values.defaults) $spec -}}
-{{- $provider := $spec.provider | default $instance -}}
-{{- if and (eq $provider "esmvaltool") $spec.config }}
+{{- $spec := include "ref.providerSpec" (dict "root" $ "spec" $spec) | fromYaml -}}
+{{- if $spec.config }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

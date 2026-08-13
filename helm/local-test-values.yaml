@@ -6,6 +6,16 @@ defaults:
     pullPolicy: IfNotPresent
     tag: latest
 
+  # The chart defaults size a pod for a real diagnostic, which a laptop cluster cannot fit.
+  # Each provider is given the same block below, because a provider's own resources win over the defaults.
+  resources: &testResources
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 2
+      memory: 2Gi
+
   podSecurityContext:
     runAsUser: 1000
 
@@ -35,16 +45,29 @@ flower:
 dragonfly:
   storage:
     enabled: false  # Use emptyDir for local testing
+  # Dragonfly counts its io threads from the CPU limit and demands 256MiB of maxmemory per thread,
+  # so the CPU limit has to come down alongside maxmemory or it refuses to start.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
   extraArgs:
   - --proactor_threads=1
   - --maxmemory=512mb
 
 # Enable all providers for testing
 providers:
-  orchestrator: {}
-  esmvaltool: {}
-  pmp: {}
-  ilamb: {}
+  orchestrator:
+    resources: *testResources
+  esmvaltool:
+    resources: *testResources
+  pmp:
+    resources: *testResources
+  ilamb:
+    resources: *testResources
 
 api:
   image:
