@@ -21,8 +21,8 @@
   {{- $volumes = append $volumes (dict "name" "esmvaltool-config" "configMap" (dict "name" (printf "%s-%s-config" (include "ref.fullname" $) $instance))) -}}
 {{- end -}}
 {{- if $.Values.celeryRoutes -}}
-  {{- $volumeMounts = append $volumeMounts (dict "name" "celery-routes" "mountPath" "/etc/climate-ref/routes" "readOnly" true) -}}
-  {{- $volumes = append $volumes (dict "name" "celery-routes" "configMap" (dict "name" (printf "%s-celery-routes" (include "ref.fullname" $)))) -}}
+  {{- $volumeMounts = append $volumeMounts (fromYaml (include "ref.celeryRoutesVolumeMount" $)) -}}
+  {{- $volumes = append $volumes (fromYaml (include "ref.celeryRoutesVolume" $)) -}}
 {{- end -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -88,8 +88,7 @@ spec:
           value: /etc/esmvaltool
         {{- end }}
         {{- if $.Values.celeryRoutes }}
-        - name: REF_CELERY_ROUTES
-          value: /etc/climate-ref/routes/routes.toml
+        {{- include "ref.celeryRoutesEnv" $ | nindent 8 }}
         {{- end }}
         {{- end }}
         envFrom:

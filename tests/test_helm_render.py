@@ -36,37 +36,33 @@ def chart_dependencies():
     )
 
 
-def _render(*set_args: str, values: str | None = None) -> subprocess.CompletedProcess:
+def _render(
+    *set_args: str, values: str | None = None, values_data: dict | None = None
+) -> subprocess.CompletedProcess:
     """Run `helm template` and return the completed process without raising."""
     cmd = [shutil.which("helm"), "template", "test", str(CHART)]
     if values is not None:
         cmd += ["-f", str(REPO_ROOT / values)]
+    tmp: Path | None = None
+    if values_data is not None:
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
+            yaml.safe_dump(values_data, f)
+            tmp = Path(f.name)
+        cmd += ["-f", str(tmp)]
     for arg in set_args:
         cmd += ["--set", arg]
-    return subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
+    finally:
+        if tmp is not None:
+            tmp.unlink()
 
 
-def render(*set_args: str, values: str | None = None) -> list[dict]:
+def render(*set_args: str, values: str | None = None, values_data: dict | None = None) -> list[dict]:
     """Render the chart and return the Kubernetes objects it produced."""
-    result = _render(*set_args, values=values)
+    result = _render(*set_args, values=values, values_data=values_data)
     assert result.returncode == 0, f"helm template failed:\n{result.stderr}"
     return [doc for doc in yaml.safe_load_all(result.stdout) if doc]
-
-
-def render_with(data: dict, *set_args: str) -> list[dict]:
-    """Render the chart with an extra values file built from `data`."""
-    with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
-        yaml.safe_dump(data, f)
-        path = Path(f.name)
-    try:
-        cmd = [shutil.which("helm"), "template", "test", str(CHART), "-f", str(path)]
-        for arg in set_args:
-            cmd += ["--set", arg]
-        result = subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
-        assert result.returncode == 0, f"helm template failed:\n{result.stderr}"
-        return [doc for doc in yaml.safe_load_all(result.stdout) if doc]
-    finally:
-        path.unlink()
 
 
 def find(docs: list[dict], kind: str, name: str) -> dict:
@@ -483,8 +479,6 @@ def test_a_custom_service_account_name_is_the_one_that_gets_created():
         )
 
 
-# --- Celery queue routing ---------------------------------------------------
-
 SIZE_ROUTES = """
 default = "{provider}"
 
@@ -551,6 +545,7 @@ def _routed_queues(docs: list[dict]) -> set[str]:
     for provider, entry in table.items():
         if provider == "default":
             continue
+        assert isinstance(entry, dict), f"unexpected top-level routing table key {provider!r}"
         templates = [rule["queue"] for rule in entry.get("rules", [])]
         templates.append(entry.get("default") or top_default or "{provider}")
         routed.update(template.format(provider=provider) for template in templates)
@@ -579,7 +574,7 @@ def test_celery_routes_are_off_by_default():
 
 
 def test_celery_routes_render_as_valid_toml():
-    docs = render_with(SIZE_VALUES)
+    docs = render(values_data=SIZE_VALUES)
     configmap = find(docs, "ConfigMap", "-celery-routes")
     table = tomllib.loads(configmap["data"]["routes.toml"])
     assert table["esmvaltool"]["rules"][0]["queue"] == "esmvaltool-large"
@@ -589,7 +584,7 @@ def test_celery_routes_render_as_valid_toml():
 def test_celery_routes_are_mounted_where_the_executor_can_run(component):
     # The API triggers solves, and an operator may exec `ref solve` in a worker pod,
     # so the table rides along everywhere.
-    docs = render_with(SIZE_VALUES)
+    docs = render(values_data=SIZE_VALUES)
     container = find(docs, "Deployment", component)["spec"]["template"]["spec"]["containers"][0]
     env = {e["name"]: e["value"] for e in container["env"]}
     path = env["REF_CELERY_ROUTES"]
@@ -598,7 +593,7 @@ def test_celery_routes_are_mounted_where_the_executor_can_run(component):
 
 
 def test_worker_instance_can_run_a_provider_under_a_different_name():
-    docs = render_with(SIZE_VALUES)
+    docs = render(values_data=SIZE_VALUES)
     args = _worker_args(docs, "esmvaltool-large")
     assert args[args.index("--provider") + 1] == "esmvaltool"
     assert "--queues=esmvaltool-large,esmvaltool-medium" in args
@@ -607,7 +602,7 @@ def test_worker_instance_can_run_a_provider_under_a_different_name():
 
 
 def test_split_esmvaltool_instances_get_their_own_config():
-    docs = render_with(SIZE_VALUES)
+    docs = render(values_data=SIZE_VALUES)
     large = yaml.safe_load(find(docs, "ConfigMap", "-esmvaltool-large-config")["data"]["config.yaml"])
     assert large["max_parallel_tasks"] == 4
     default = yaml.safe_load(find(docs, "ConfigMap", "-esmvaltool-config")["data"]["config.yaml"])
@@ -616,7 +611,7 @@ def test_split_esmvaltool_instances_get_their_own_config():
 
 
 def test_size_values_route_to_no_orphan_queue():
-    assert_no_orphan_queues(render_with(SIZE_VALUES))
+    assert_no_orphan_queues(render(values_data=SIZE_VALUES))
 
 
 @pytest.mark.parametrize("values", VALUES_FILES)
@@ -630,4 +625,4 @@ def test_orphan_queue_guard_detects_a_queue_with_no_consumer():
         "celeryRoutes": '[esmvaltool]\nrules = [ { match = "*", queue = "esmvaltool-huge" } ]\n',
     }
     with pytest.raises(AssertionError, match="esmvaltool-huge"):
-        assert_no_orphan_queues(render_with(values))
+        assert_no_orphan_queues(render(values_data=values))

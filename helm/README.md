@@ -400,7 +400,10 @@ providers:
 
 Every queue the routing table can produce must be consumed by some instance,
 because a task sent to a queue with no consumer waits forever and the solve blocks.
-The render test suite checks this for values files shipped with the chart.
+The render tests include an orphan-queue guard that checks any rendered routing table
+against the rendered workers.
+The values files shipped with the chart set no routing table,
+so run the guard against your deployment values before enabling one.
 Keep the bare provider queue in some instance's `queues` while executions
 submitted before the table are still draining.
 

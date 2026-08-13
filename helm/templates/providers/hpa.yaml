@@ -1,18 +1,18 @@
-{{- range $provider, $spec := (omit .Values.providers "defaults") -}}
+{{- range $instance, $spec := (omit .Values.providers "defaults") -}}
 {{- $spec := mergeOverwrite (deepCopy $.Values.defaults) $spec -}}
 {{- if and $spec.autoscaling $spec.autoscaling.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "ref.fullname" $ }}-{{ $provider }}
+  name: {{ include "ref.fullname" $ }}-{{ $instance }}
   labels:
-    app.kubernetes.io/component: {{ $provider }}
+    app.kubernetes.io/component: {{ $instance }}
     {{- include "ref.labels" $ | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "ref.fullname" $ }}-{{ $provider }}
+    name: {{ include "ref.fullname" $ }}-{{ $instance }}
   minReplicas: {{ $spec.autoscaling.minReplicas }}
   maxReplicas: {{ $spec.autoscaling.maxReplicas }}
   metrics:
