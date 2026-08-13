@@ -300,7 +300,7 @@ These defaults apply to all providers unless overridden per-provider.
 | `defaults.replicaCount`     | Number of worker replicas | `1`                               |
 | `defaults.concurrency`      | Celery child processes per pod | `1`                          |
 | `defaults.image.repository` | Worker image repository   | `ghcr.io/climate-ref/climate-ref` |
-| `defaults.image.tag`        | Worker image tag          | `v0.17.0`                         |
+| `defaults.image.tag`        | Worker image tag          | `v0.17.1`                         |
 | `defaults.image.pullPolicy` | Image pull policy         | `IfNotPresent`                    |
 | `defaults.resources`        | Resource requests/limits  | 4 CPU / 16Gi, limits 6 CPU / 32Gi |
 | `defaults.nodeSelector`     | Node selector             | `{}`                              |
