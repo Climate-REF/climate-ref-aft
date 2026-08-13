@@ -328,12 +328,12 @@ def test_workers_only_wait_for_dragonfly_when_dragonfly_is_deployed():
         "dragonfly.enabled=false",
         "externalBroker.url=redis://broker.example:6379",
     )
-    for component in ("orchestrator", "esmvaltool", "pmp", "ilamb"):
-        with_dragonfly = find(docs, "Deployment", f"-{component}")
+    for provider in PROVIDERS:
+        with_dragonfly = find(docs, "Deployment", f"-{provider}")
         init_containers = with_dragonfly["spec"]["template"]["spec"]["initContainers"]
         assert [c for c in init_containers if c["name"] == "wait-for-dragonfly"]
 
-        without = find(without_broker_docs, "Deployment", f"-{component}")
+        without = find(without_broker_docs, "Deployment", f"-{provider}")
         assert "initContainers" not in without["spec"]["template"]["spec"]
 
 

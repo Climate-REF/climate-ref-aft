@@ -129,6 +129,32 @@ true
 {{- end -}}
 
 {{/*
+Init container that holds a pod back until the bundled Dragonfly answers on its port,
+because a Celery client that connects while the broker is still starting can wedge silently.
+Emits the whole initContainers block, or nothing when Dragonfly is not deployed,
+so callers must wrap the include in `with`.
+Takes the root context.
+*/}}
+{{- define "ref.waitForDragonfly" -}}
+{{- if include "ref.dragonflyEnabled" . -}}
+{{- $dragonfly := .Values.dragonfly | default dict -}}
+initContainers:
+- name: wait-for-dragonfly
+  image: busybox:1.37
+  command:
+  - sh
+  - -c
+  - |
+    echo "Waiting for Dragonfly at {{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ $dragonfly.service.port }}..."
+    until nc -z {{ include "dragonfly.fullname" .Subcharts.dragonfly }} {{ $dragonfly.service.port }}; do
+      echo "Dragonfly not ready, retrying in 2s..."
+      sleep 2
+    done
+    echo "Dragonfly is ready"
+{{- end -}}
+{{- end -}}
+
+{{/*
 Resolve the Celery broker URL.
 Uses the bundled Dragonfly subchart when it is deployed,
 otherwise the operator must point the chart at their own broker via externalBroker.url.
