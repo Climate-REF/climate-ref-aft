@@ -37,8 +37,10 @@ defaults:
     runAsUser: 1000
 
   # The chart defaults size a pod for a real diagnostic, which no CI runner has.
-  # These pods only need to start and answer a ping.
-  # Each provider is given the same block below, because a provider's own resources win over the defaults.
+  # The e2e solve runs one small diagnostic per provider on sample data,
+  # so the pods need enough to run that, not a production workload.
+  # A provider's own resources win over the defaults,
+  # so each provider that needs nothing special reuses this block below.
   resources: &testResources
     requests:
       cpu: 100m
@@ -64,7 +66,27 @@ providers:
   orchestrator:
     resources: *testResources
   esmvaltool:
-    resources: *testResources
+    # The chart's default config starts a Dask cluster of 2 workers with a 4GiB limit each,
+    # which believes it has 8GiB inside the 1Gi test pod.
+    # A killed Dask worker leaves ESMValCore hanging silently between tasks,
+    # which is what intermittently stalled the e2e solve past its timeout.
+    # This gives the pod room for one execution and a Dask config that fits inside it.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 2
+        memory: 3Gi
+    # Only the leaves that differ from the chart default, helm deep-merges the rest.
+    config:
+      max_parallel_tasks: 1
+      dask:
+        profiles:
+          local_distributed:
+            cluster:
+              n_workers: 1
+              memory_limit: 1GiB
   pmp:
     resources: *testResources
   ilamb:

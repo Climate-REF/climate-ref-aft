@@ -81,7 +81,9 @@ jobs:
     - name: Wait for pods
       run: |
         echo "Waiting for deployments to be ready..."
-        kubectl wait --for=condition=available deployment --all --timeout=120s
+        # Init containers hold every worker until the broker hostname resolves,
+        # and DNS can take a couple of minutes to come up on a fresh minikube.
+        kubectl wait --for=condition=available deployment --all --timeout=300s
         kubectl get pods
     - name: Verify all pods healthy
       run: |
@@ -125,7 +127,11 @@ jobs:
         enableCrossOsArchive: true
     - name: Set permissions for cached data
       run: |
+        # The pods run as uid 1000, but the cache action restores files owned by the runner user,
+        # so everything the previous run cached (e.g. /ref/log) must be handed back
+        # before the migrate hook writes to it.
         sudo install -d --owner=1000 --group=1000 ${GITHUB_WORKSPACE}/cache/ref-config
+        sudo chown -R 1000:1000 ${GITHUB_WORKSPACE}/cache/ref-config
     - name: Start minikube
       uses: medyagh/setup-minikube@latest
       with:
@@ -218,6 +224,13 @@ jobs:
         check /utils/health-check/
         check /cmip7-aft-diagnostics/ 1
         check /executions/ 1
+    - name: Capture Migrate Logs on Failure
+      if: failure()
+      # The migrate hook runs before any deployment exists,
+      # so a pre-install failure leaves only its pods to inspect.
+      run: |
+        kubectl describe job/test-climate-ref-aft-migrate || true
+        kubectl logs -l job-name=test-climate-ref-aft-migrate --tail=200 || true
     - name: Capture API logs on failure
       if: failure()
       run: |
@@ -226,6 +239,12 @@ jobs:
         echo ""
         echo "=== API describe ==="
         kubectl describe deployment/test-climate-ref-aft-api || true
+    - name: Capture Broker State on Failure
+      if: failure()
+      # The recurring failure mode is a task submitted to a queue and never traced by its worker.
+      run: |
+        kubectl exec -i deployment/test-climate-ref-aft-orchestrator -- \
+          uv run python - < scripts/lib/broker_state.py || true
     - name: Capture Worker Logs on Failure
       if: failure()
       run: |
@@ -234,6 +253,13 @@ jobs:
         echo ""
         echo "=== ESMValTool Worker Logs ==="
         kubectl logs -l app.kubernetes.io/component=esmvaltool --tail=500 || true
+        echo ""
+        # The worker prints nothing while a diagnostic runs.
+        # ESMValTool logs to files under the execution's scratch directory,
+        # so these tails show where a hung execution stalled.
+        echo "=== ESMValTool execution logs ==="
+        kubectl exec deployment/test-climate-ref-aft-esmvaltool -- sh -c \
+          'find /ref/scratch/esmvaltool -name "main_log.txt" | while read -r f; do echo "--- $f"; tail -n 100 "$f"; done' || true
         echo ""
         echo "=== ILAMB Worker Logs ==="
         kubectl logs -l app.kubernetes.io/component=ilamb --tail=500 || true

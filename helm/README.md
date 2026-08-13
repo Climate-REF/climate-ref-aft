@@ -171,7 +171,7 @@ The `api` section configures the ref-app (FastAPI + React frontend).
 | `api.enabled`          | Enable the API deployment | `true`                                     |
 | `api.replicaCount`     | Number of API replicas    | `1`                                        |
 | `api.image.repository` | API image repository      | `ghcr.io/climate-ref/climate-ref-frontend` |
-| `api.image.tag`        | API image tag             | `v0.4.0`                                   |
+| `api.image.tag`        | API image tag             | `v0.4.1`                                   |
 | `api.image.pullPolicy` | Image pull policy         | `IfNotPresent`                             |
 | `api.service.type`     | Service type              | `ClusterIP`                                |
 | `api.service.port`     | Service port              | `80`                                       |
@@ -300,7 +300,7 @@ These defaults apply to all providers unless overridden per-provider.
 | `defaults.replicaCount`     | Number of worker replicas | `1`                               |
 | `defaults.concurrency`      | Celery child processes per pod | `1`                          |
 | `defaults.image.repository` | Worker image repository   | `ghcr.io/climate-ref/climate-ref` |
-| `defaults.image.tag`        | Worker image tag          | `v0.16.2`                         |
+| `defaults.image.tag`        | Worker image tag          | `v0.17.0`                         |
 | `defaults.image.pullPolicy` | Image pull policy         | `IfNotPresent`                    |
 | `defaults.resources`        | Resource requests/limits  | 4 CPU / 16Gi, limits 6 CPU / 32Gi |
 | `defaults.nodeSelector`     | Node selector             | `{}`                              |
@@ -415,6 +415,52 @@ Provider values win over `defaults` key by key.
 Nested maps such as `env` are merged rather than replaced,
 so a provider only needs to name the keys it changes.
 List values such as `volumes` and `volumeMounts` are replaced wholesale.
+
+### Size-Based Queues
+
+By default, every execution for a provider lands on a single queue named after the provider,
+so all workers for that provider must be sized for its largest diagnostic.
+Two values split that queue by size, letting differently sized worker pools consume it:
+
+- `celeryRoutes` holds a TOML routing table that maps diagnostics to queue names.
+  It is written to a ConfigMap and exposed to the API and every worker via `REF_CELERY_ROUTES`.
+- Each entry under `providers.*` is a worker instance, not necessarily a provider.
+  Setting `provider` decouples the instance name from the provider it runs,
+  and `queues` selects the queues the instance consumes.
+
+```yaml
+celeryRoutes: |
+  [esmvaltool]
+  default = "esmvaltool-medium"
+  rules = [
+    { match = "portrait-*", queue = "esmvaltool-large" },
+  ]
+
+providers:
+  esmvaltool:
+    queues: [esmvaltool, esmvaltool-medium]
+  esmvaltool-large:
+    provider: esmvaltool
+    queues: [esmvaltool-large]
+    resources:
+      requests:
+        memory: "16Gi"
+```
+
+Every queue the routing table can produce must be consumed by some instance,
+because a task sent to a queue with no consumer waits forever and the solve blocks.
+The render tests include an orphan-queue guard that checks any rendered routing table
+against the rendered workers.
+The values files shipped with the chart set no routing table,
+so run the guard against your deployment values before enabling one.
+Keep the bare provider queue in some instance's `queues` while executions
+submitted before the table are still draining.
+
+Routing requires climate-ref v0.17.0 or newer in both the API and worker images.
+Older releases ignore `REF_CELERY_ROUTES` and keep sending everything to the bare provider queue,
+so enable the table only after the images are upgraded.
+See the [climate-ref configuration docs](https://climate-ref.readthedocs.io/en/latest/configuration/)
+for the full routing table format.
 
 ### Environment Variables
 

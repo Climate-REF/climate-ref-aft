@@ -1,4 +1,11 @@
 {{- if .Values.api.enabled -}}
+{{- $volumes := .Values.api.volumes | default .Values.defaults.volumes | default list -}}
+{{- $volumeMounts := .Values.api.volumeMounts | default .Values.defaults.volumeMounts | default list -}}
+{{- /* The API constructs the Celery executor when it triggers a solve, so it needs the routing table. */ -}}
+{{- if .Values.celeryRoutes -}}
+  {{- $volumeMounts = append $volumeMounts (fromYaml (include "ref.celeryRoutesVolumeMount" .)) -}}
+  {{- $volumes = append $volumes (fromYaml (include "ref.celeryRoutesVolume" .)) -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -49,6 +56,10 @@ spec:
         {{- end }}
         image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
         imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+        {{- if .Values.celeryRoutes }}
+        env:
+        {{- include "ref.celeryRoutesEnv" . | nindent 8 }}
+        {{- end }}
         envFrom:
         - secretRef:
             name: {{ include "ref.fullname" . }}-api
@@ -66,11 +77,11 @@ spec:
         resources:
           {{- toYaml . | nindent 12 }}
         {{- end }}
-        {{- with (.Values.api.volumeMounts | default .Values.defaults.volumeMounts) }}
+        {{- with $volumeMounts }}
         volumeMounts:
           {{- toYaml . | nindent 12 }}
         {{- end }}
-      {{- with (.Values.api.volumes | default .Values.defaults.volumes) }}
+      {{- with $volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
       {{- end }}

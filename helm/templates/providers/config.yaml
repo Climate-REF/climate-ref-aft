@@ -1,12 +1,12 @@
-{{- range $provider, $spec := (omit .Values.providers "defaults") -}}
+{{- range $instance, $spec := (omit .Values.providers "defaults") -}}
 {{- $spec := include "ref.providerSpec" (dict "root" $ "spec" $spec) | fromYaml -}}
 {{- if $spec.config }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "ref.fullname" $ }}-{{ $provider }}-config
+  name: {{ include "ref.fullname" $ }}-{{ $instance }}-config
   labels:
-    app.kubernetes.io/component: {{ $provider }}
+    app.kubernetes.io/component: {{ $instance }}
     {{- include "ref.labels" $ | nindent 4 }}
 data:
   config.yaml: |

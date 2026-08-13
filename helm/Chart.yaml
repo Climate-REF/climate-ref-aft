@@ -7,7 +7,7 @@ type: application
 version: 0.5.2
 
 # Application version tracks the climate-ref core version
-appVersion: "0.16.2"
+appVersion: "0.17.0"
 
 dependencies:
 - name: dragonfly
