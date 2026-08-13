@@ -257,6 +257,13 @@ jobs:
         echo "=== ESMValTool Worker Logs ==="
         kubectl logs -l app.kubernetes.io/component=esmvaltool --tail=500 || true
         echo ""
+        # The worker prints nothing while a diagnostic runs.
+        # ESMValTool logs to files under the execution's scratch directory,
+        # so these tails show where a hung execution stalled.
+        echo "=== ESMValTool execution logs ==="
+        kubectl exec deployment/test-climate-ref-aft-esmvaltool -- sh -c \
+          'find /ref/scratch/esmvaltool -name "main_log.txt" | while read -r f; do echo "--- $f"; tail -n 100 "$f"; done' || true
+        echo ""
         echo "=== ILAMB Worker Logs ==="
         kubectl logs -l app.kubernetes.io/component=ilamb --tail=500 || true
         echo ""
