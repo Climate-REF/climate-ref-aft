@@ -765,3 +765,18 @@ def test_http_route_omits_filters_when_none_are_set(component):
     values.setdefault(component, {})["httpRoute"] = {"enabled": True}
     docs = render(values=values)
     assert "filters" not in find(docs, "HTTPRoute", f"-{component}")["spec"]["rules"][0]
+
+
+def _mount_paths(workload: dict) -> set[str]:
+    mounts = workload["spec"]["template"]["spec"]["containers"][0].get("volumeMounts", [])
+    return {m["mountPath"] for m in mounts}
+
+
+@pytest.mark.parametrize("values", ["helm/ci/minimal-values.yaml", "helm/local-test-values.yaml"])
+def test_orchestrator_and_migrate_job_inherit_the_default_ref_mount(values):
+    # These files mount /ref through `defaults` alone and never name the orchestrator's volumes.
+    # An empty `volumes` list in the orchestrator block replaces that inherited list rather than
+    # falling back to it, which left the pod with no /ref and a read-only root filesystem.
+    docs = render(SECRET_ARG, values=values)
+    assert "/ref" in _mount_paths(find(docs, "Deployment", "-orchestrator"))
+    assert "/ref" in _mount_paths(find(docs, "Job", "-migrate"))

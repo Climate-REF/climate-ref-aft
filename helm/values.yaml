@@ -369,11 +369,11 @@ orchestrator:
       cpu: 2
       memory: 8Gi
 
-  # Left empty so `defaults.volumes` applies. Override both here to give the
-  # orchestrator the RW mounts that `providers setup` and `handle_result` need
-  # while the diagnostic workers keep a narrower view of the same PVC.
-  volumes: []
-  volumeMounts: []
+  # `volumes` and `volumeMounts` are deliberately absent, so the orchestrator
+  # inherits `defaults`. Setting them to [] here would replace the inherited
+  # lists with nothing and leave the pod without its /ref mount.
+  # Set them to give the orchestrator the RW mounts that `providers setup` and
+  # `handle_result` need while the diagnostic workers keep a narrower view of the same PVC.
 
 # Map of instances to deploy, where the key is the instance name and the value
 # is any provider-specific overrides.
