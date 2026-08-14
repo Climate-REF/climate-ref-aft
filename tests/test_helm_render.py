@@ -782,6 +782,15 @@ def _mount_paths(workload: dict) -> set[str]:
     return {m["mountPath"] for m in mounts}
 
 
+def test_migrate_job_follows_an_orchestrator_only_env_override():
+    # The Job migrates the database the orchestrator then talks to.
+    # Taking env from `defaults` while taking volumes from the orchestrator would let a
+    # migration run against a different database than the app uses.
+    docs = render(SECRET_ARG, "orchestrator.env.REF_DATABASE_URL=sqlite:////ref/db/other.db")
+    secret = find(docs, "Secret", "-migrate")
+    assert secret["stringData"]["REF_DATABASE_URL"] == "sqlite:////ref/db/other.db"
+
+
 @pytest.mark.parametrize("values", ["helm/ci/minimal-values.yaml", "helm/local-test-values.yaml"])
 def test_orchestrator_and_migrate_job_inherit_the_default_ref_mount(values):
     # These files mount /ref through `defaults` alone and never name the orchestrator's volumes.

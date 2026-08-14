@@ -145,7 +145,7 @@ The split follows from how the work is dispatched:
 - `/ref/log` is written by every Celery worker, not just the orchestrator.
   A worker opens a log file there as it starts, so a read-only `/ref/log` stops the worker before it consumes anything.
 - `/ref/db` only matters with the default SQLite database.
-  Point `REF_DATABASE_URL` at Postgres and the API no longer needs to write anywhere under `/ref` except the log directory.
+  Point `REF_DATABASE_URL` at Postgres and the API no longer needs to write anywhere under `/ref`.
 
 #### Minimal working example
 
