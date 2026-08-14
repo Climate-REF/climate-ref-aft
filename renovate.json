@@ -93,7 +93,7 @@
       "description": "Tooling, actions and supporting services are not part of the deployed combination",
       "matchPackageNames": ["!/^climate-ref/"],
       "groupName": "supporting dependencies",
-      "schedule": ["before 9am on the first day of the month"]
+      "schedule": ["on monday"]
     },
     {
       "description": "One PR for the whole climate-ref component set",
