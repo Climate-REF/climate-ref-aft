@@ -1,4 +1,5 @@
-{{- range $instance, $spec := (omit .Values.providers "defaults") -}}
+{{- include "ref.validateOrchestrator" . -}}
+{{- range $instance, $spec := (fromYaml (include "ref.workerInstances" .)) -}}
 {{- $spec := include "ref.providerSpec" (dict "root" $ "spec" $spec) | fromYaml -}}
 {{- /* The instance name is the deployment identity, the provider is what the worker runs. */ -}}
 {{- $provider := $spec.provider | default $instance -}}

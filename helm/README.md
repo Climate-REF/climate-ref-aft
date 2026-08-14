@@ -108,22 +108,50 @@ Each provider worker listens to a specific Celery queue:
 
 ## Configuration
 
-### Required Volumes
+### Required volumes
 
 The chart sets environment variables (`HOME`, `REF_CONFIGURATION`, `REF_SOFTWARE_ROOT`) that point at filesystem paths the application expects to read and write.
 The default `securityContext.readOnlyRootFilesystem: true` makes those paths fail unless they are explicitly mounted.
-You must wire up the following volumes in your `values.yaml`, otherwise pods will crash on startup or during `ref providers setup`.
+You must wire up these volumes in your `values.yaml`, otherwise pods will crash on startup or during `ref providers setup`.
 
-| Path           | Used by                                | Why required                                                                                                                                  | Suggested backing                              |
-| -------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `/ref`         | API + all workers + migrate Job        | `REF_CONFIGURATION` and `REF_SOFTWARE_ROOT=/ref/software`. Workers populate it via `providers setup` (multi-GB conda envs); the API reads it. | Persistent volume (PVC or shared host mount).  |
-| `/tmp`         | API + all workers + migrate Job        | `HOME=/tmp`. Diagnostic libraries (intake-esgf, ilamb3) create config directories on import. Required because root FS is read-only.           | `emptyDir: {}` is sufficient.                  |
+| Path   | Used by                         | Why required                                                                                                               | Suggested backing                             |
+| ------ | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `/ref` | API + all workers + migrate Job | `REF_CONFIGURATION` and `REF_SOFTWARE_ROOT=/ref/software`. Holds the config, the conda environments, scratch and results.  | Persistent volume (PVC or shared host mount). |
+| `/tmp` | API + all workers + migrate Job | `HOME=/tmp`. Diagnostic libraries (intake-esgf, ilamb3) create config directories on import, and the root FS is read-only.  | `emptyDir: {}` is sufficient.                 |
+
+#### Who writes what
+
+`/ref` is one volume, but the components need very different access to it.
+Granting every pod RW on the whole tree works,
+but narrowing access means a buggy or compromised diagnostic cannot clobber another provider's conda environment.
+
+| Subpath         | API | Provider workers | Orchestrator | Migrate Job |
+| --------------- | --- | ---------------- | ------------ | ----------- |
+| `/ref` (config) | RO  | RO               | RO           | RO          |
+| `/ref/software` | RO  | RO               | RW           | —           |
+| `/ref/scratch`  | —   | RW               | RW           | —           |
+| `/ref/results`  | RO  | —                | RW           | —           |
+| `/ref/db`       | RW  | RW               | RW           | RW          |
+| `/ref/log`      | —   | RW               | RW           | RW          |
+
+The split follows from how the work is dispatched:
+
+- Provider workers run `celery start-worker --provider X` and consume only their own provider queue.
+  They read the conda environments and write their execution outputs to scratch.
+- The orchestrator runs `celery start-worker` with no `--provider`, so it is the only pod consuming the default `celery` queue.
+  That queue carries `handle_result`, which copies each execution from scratch into results.
+- `/ref/scratch` must stay a **shared** volume, not a per-pod `emptyDir`.
+  The worker writes the outputs and the orchestrator reads them back out from a different pod, so a per-pod scratch loses every result.
+- `/ref/log` is written by every Celery worker, not just the orchestrator.
+  A worker opens a log file there as it starts, so a read-only `/ref/log` stops the worker before it consumes anything.
+- `/ref/db` only matters with the default SQLite database.
+  Point `REF_DATABASE_URL` at Postgres and the API no longer needs to write anywhere under `/ref`.
 
 #### Minimal working example
 
 ```yaml
 api:
-  volumes:
+  volumes: &refVolumes
   - name: ref
     persistentVolumeClaim:
       claimName: ref-data
@@ -132,27 +160,46 @@ api:
   volumeMounts:
   - name: ref
     mountPath: /ref
-    readOnly: true            # API only reads
+    readOnly: true            # config, conda environments and results are read-only
+  - name: ref
+    mountPath: /ref/db        # drop this once REF_DATABASE_URL points at Postgres
+    subPath: db
   - name: tmp
     mountPath: /tmp
 
+# `defaults` covers the diagnostic workers.
 defaults:
-  volumes:
-  - name: ref
-    persistentVolumeClaim:
-      claimName: ref-data
-  - name: tmp
-    emptyDir: {}
+  volumes: *refVolumes
   volumeMounts:
   - name: ref
-    mountPath: /ref           # workers must write here
+    mountPath: /ref
+    readOnly: true            # config and conda environments are read-only
+  - name: ref
+    mountPath: /ref/scratch   # shared with the orchestrator, which copies results out
+    subPath: scratch
+  - name: ref
+    mountPath: /ref/log       # every worker opens a log file here as it starts
+    subPath: log
+  - name: ref
+    mountPath: /ref/db        # drop this once REF_DATABASE_URL points at Postgres
+    subPath: db
+  - name: tmp
+    mountPath: /tmp
+
+# The orchestrator writes the conda environments and the results, so it gets the whole tree.
+orchestrator:
+  volumes: *refVolumes
+  volumeMounts:
+  - name: ref
+    mountPath: /ref
   - name: tmp
     mountPath: /tmp
 ```
 
-For ephemeral test deployments (no persistence across upgrades), `/ref` can also be an `emptyDir`, see [`helm/ci/minimal-values.yaml`](ci/minimal-values.yaml).
+The migrate Job reuses the orchestrator's volumes, because migrations write the database.
 
-This is the looser of two valid layouts: provider workers only need RO access to `/ref/software` and a per-pod scratch directory, but the chart does not yet expose that split. Tracked in [issue #8](https://github.com/Climate-REF/climate-ref-aft/issues/8).
+For ephemeral test deployments (no persistence across upgrades), `/ref` can also be an `emptyDir`, see [`helm/ci/minimal-values.yaml`](ci/minimal-values.yaml).
+[`helm/ci/gh-actions-values.yaml`](ci/gh-actions-values.yaml) shows the split above against a single host path.
 
 ### Global Parameters
 
@@ -401,7 +448,6 @@ Each provider under `providers.*` can override any default setting:
 
 ```yaml
 providers:
-  orchestrator: {}              # Uses all defaults
   esmvaltool:
     replicaCount: 6             # Six pods, so six esmvaltool tasks at once
     resources:
@@ -415,6 +461,19 @@ Provider values win over `defaults` key by key.
 Nested maps such as `env` are merged rather than replaced,
 so a provider only needs to name the keys it changes.
 List values such as `volumes` and `volumeMounts` are replaced wholesale.
+
+The orchestrator takes the same keys, but lives in its own top-level `orchestrator` block rather than under `providers`.
+It is a Celery worker like the others, so it is layered over `defaults` in exactly the same way.
+It is separate because it is the only pod consuming the default `celery` queue, and because its access to `/ref` is wider than a diagnostic worker's.
+Set `orchestrator.enabled: false` to leave it out entirely.
+
+```yaml
+orchestrator:
+  replicaCount: 2
+  resources:
+    limits:
+      memory: "16Gi"
+```
 
 ### Size-Based Queues
 

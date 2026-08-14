@@ -30,6 +30,9 @@ api:
     parentRefs: []
     annotations: {}
     labels: {}
+    # Gateway API filters applied to the route's single rule,
+    # e.g. a Traefik Middleware ExtensionRef for forward-auth.
+    filters: []
 
   serviceAccount:
     create: true
@@ -161,6 +164,9 @@ flower:
     parentRefs: []
     annotations: {}
     labels: {}
+    # Gateway API filters applied to the route's single rule,
+    # e.g. a Traefik Middleware ExtensionRef for forward-auth.
+    filters: []
 
   serviceMonitor:
     enabled: false
@@ -344,6 +350,31 @@ defaults:
   tolerations: []
   affinity: {}
 
+# The orchestrator is the Celery worker that consumes the default `celery` queue.
+# It takes the same keys as an entry under `providers`, layered over `defaults` the same way,
+# but it is its own block because its access to `/ref` is wider than a diagnostic worker's.
+# It is the only pod that runs `ref providers setup`, so it alone writes `/ref/software`,
+# and it runs the `handle_result` task that copies `/ref/scratch` into `/ref/results`.
+# See "Required volumes" in README.md for the access split this implies.
+orchestrator:
+  enabled: true
+
+  # The orchestrator queues and tracks executions rather than running them,
+  # so it needs far less than a diagnostic worker.
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits:
+      cpu: 2
+      memory: 8Gi
+
+  # `volumes` and `volumeMounts` are deliberately absent, so the orchestrator
+  # inherits `defaults`. Setting them to [] here would replace the inherited
+  # lists with nothing and leave the pod without its /ref mount.
+  # Set them to give the orchestrator the RW mounts that `providers setup` and
+  # `handle_result` need while the diagnostic workers keep a narrower view of the same PVC.
+
 # Map of instances to deploy, where the key is the instance name and the value
 # is any provider-specific overrides.
 #
@@ -354,16 +385,6 @@ defaults:
 # task_acks_late means the worker stores the timeout result before it acknowledges the task,
 # and an equal window lets the broker redeliver during that gap, so the task executes twice.
 providers:
-  # The orchestrator queues and tracks executions rather than running them,
-  # so it needs far less than a diagnostic worker.
-  orchestrator:
-    resources:
-      requests:
-        cpu: 1
-        memory: 2Gi
-      limits:
-        cpu: 2
-        memory: 8Gi
   esmvaltool:
     # An execution fans out across its own Dask cluster (see `config` below),
     # so the pod holds every one of those workers at once.

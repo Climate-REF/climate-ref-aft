@@ -48,6 +48,34 @@ defaults:
     limits:
       cpu: 1
       memory: 1Gi
+  # Diagnostic workers read the config and the conda envs, and write only scratch.
+  # `/ref/scratch` has to stay shared with the orchestrator.
+  volumes:
+  - name: gha-cached
+    hostPath:
+      path: /cache/ref-config
+  - name: tmp
+    emptyDir: {}
+  volumeMounts:
+  - name: gha-cached
+    mountPath: /ref
+    readOnly: true
+  - name: gha-cached
+    mountPath: /ref/scratch
+    subPath: scratch
+    readOnly: false
+  - name: gha-cached
+    mountPath: /ref/log
+    subPath: log
+    readOnly: false
+  - name: tmp
+    mountPath: /tmp
+    readOnly: false
+
+# The orchestrator runs `providers setup` and copies scratch into results,
+# so it is the one worker that needs the whole tree writable.
+orchestrator:
+  resources: *testResources
   volumes:
   - name: gha-cached
     hostPath:
@@ -63,8 +91,6 @@ defaults:
     readOnly: false
 
 providers:
-  orchestrator:
-    resources: *testResources
   esmvaltool:
     # The chart's default config starts a Dask cluster of 2 workers with a 4GiB limit each,
     # which believes it has 8GiB inside the 1Gi test pod.

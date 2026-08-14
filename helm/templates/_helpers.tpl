@@ -84,11 +84,33 @@ because a pod naming an account the chart does not create is not admitted.
 {{- end -}}
 
 {{/*
+The set of Celery worker instances the chart renders: the providers plus the orchestrator.
+*/}}
+{{- define "ref.workerInstances" -}}
+{{- $instances := omit .Values.providers "defaults" -}}
+{{- $orchestrator := .Values.orchestrator | default dict -}}
+{{- if ne (toString $orchestrator.enabled) "false" -}}
+{{- $instances = merge (dict "orchestrator" (omit $orchestrator "enabled")) $instances -}}
+{{- end -}}
+{{- toYaml $instances -}}
+{{- end -}}
+
+{{/*
+Fail the render when the orchestrator is still configured under `providers`.
+It moved to a top-level block in chart 0.6.0, and a stale entry would otherwise
+render a second orchestrator Deployment consuming the same `celery` queue.
+*/}}
+{{- define "ref.validateOrchestrator" -}}
+{{- if hasKey (.Values.providers | default dict) "orchestrator" -}}
+{{- fail "providers.orchestrator moved to the top-level `orchestrator` block in chart 0.6.0. Move its values there and remove the providers.orchestrator key." -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Resolve a provider's effective spec: the shared defaults with the provider's own values on top.
 Takes a dict of `root` (the top level context) and `spec` (the provider's own values).
 Every provider template must resolve its spec through here,
 so that override precedence is defined in one place rather than per object.
-Returns YAML, so callers pipe it through `fromYaml`.
 */}}
 {{- define "ref.providerSpec" -}}
 {{- toYaml (mergeOverwrite (deepCopy .root.Values.defaults) (.spec | default dict)) -}}

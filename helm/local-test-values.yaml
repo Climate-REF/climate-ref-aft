@@ -58,10 +58,11 @@ dragonfly:
   - --proactor_threads=1
   - --maxmemory=512mb
 
+orchestrator:
+  resources: *testResources
+
 # Enable all providers for testing
 providers:
-  orchestrator:
-    resources: *testResources
   esmvaltool:
     resources: *testResources
   pmp:

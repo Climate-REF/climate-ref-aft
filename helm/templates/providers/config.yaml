@@ -1,4 +1,5 @@
-{{- range $instance, $spec := (omit .Values.providers "defaults") -}}
+{{- include "ref.validateOrchestrator" . -}}
+{{- range $instance, $spec := (fromYaml (include "ref.workerInstances" .)) -}}
 {{- $spec := include "ref.providerSpec" (dict "root" $ "spec" $spec) | fromYaml -}}
 {{- if $spec.config }}
 apiVersion: v1

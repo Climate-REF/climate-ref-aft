@@ -1,3 +1,7 @@
+{{- /* Migrations write the database the orchestrator then uses, so the Job takes the
+       orchestrator's settings throughout. Splitting env from volumes here would let a
+       migration run against a different database than the one the app talks to. */ -}}
+{{- $migrate := mergeOverwrite (deepCopy .Values.defaults) (omit (.Values.orchestrator | default dict) "enabled" "resources") -}}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -9,7 +13,7 @@ metadata:
     "helm.sh/hook-weight": "-5"
     "helm.sh/hook-delete-policy": before-hook-creation
 stringData:
-  {{- tpl (toYaml .Values.defaults.env) . | nindent 2 }}
+  {{- tpl (toYaml $migrate.env) . | nindent 2 }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -45,14 +49,14 @@ spec:
         envFrom:
         - secretRef:
             name: {{ include "ref.fullname" . }}-migrate
-        {{- with .Values.defaults.extraEnvFrom }}
+        {{- with $migrate.extraEnvFrom }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.defaults.volumeMounts }}
+        {{- with $migrate.volumeMounts }}
         volumeMounts:
           {{- toYaml . | nindent 10 }}
         {{- end }}
-      {{- with .Values.defaults.volumes }}
+      {{- with $migrate.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
       {{- end }}

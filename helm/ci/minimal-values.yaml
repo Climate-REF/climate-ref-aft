@@ -32,9 +32,10 @@ defaults:
   - name: tmp
     mountPath: /tmp
 
+orchestrator:
+  resources: *testResources
+
 providers:
-  orchestrator:
-    resources: *testResources
   esmvaltool:
     resources: *testResources
   pmp:

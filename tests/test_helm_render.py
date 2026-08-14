@@ -701,3 +701,101 @@ def test_orphan_queue_guard_detects_a_queue_with_no_consumer():
     }
     with pytest.raises(AssertionError, match="esmvaltool-huge"):
         assert_no_orphan_queues(render(SECRET_ARG, values=values))
+
+
+def _mount(docs: list[dict], component: str, path: str) -> dict:
+    """Return the volumeMount at `path` for a component's Deployment, or an empty dict."""
+    mounts = _container(docs, component).get("volumeMounts", [])
+    return next((m for m in mounts if m["mountPath"] == path), {})
+
+
+def test_orchestrator_is_configured_from_its_own_top_level_block():
+    docs = render(SECRET_ARG, "orchestrator.replicaCount=3")
+    assert find(docs, "Deployment", "-orchestrator")["spec"]["replicas"] == 3
+
+
+def test_orchestrator_can_be_disabled():
+    docs = render(SECRET_ARG, "orchestrator.enabled=false")
+    assert not [d for d in docs if d["metadata"]["name"].endswith("-orchestrator")]
+
+
+def test_orchestrator_left_under_providers_fails_with_a_migration_message():
+    # The stale key would otherwise render a second worker on the same `celery` queue.
+    result = _render(SECRET_ARG, "providers.orchestrator.replicaCount=1")
+    assert result.returncode != 0
+    assert "providers.orchestrator moved to the top-level `orchestrator` block" in result.stderr
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_every_worker_can_write_its_log_directory(provider):
+    # climate_ref_celery.app opens a loguru file sink under config.paths.log as the worker starts,
+    # so a read-only /ref/log stops the worker before it consumes a single task.
+    docs = render(SECRET_ARG, values="helm/ci/gh-actions-values.yaml")
+    mounts = _container(docs, provider).get("volumeMounts", [])
+    writable = {m["mountPath"] for m in mounts if not m.get("readOnly")}
+    assert writable & {"/ref", "/ref/log"}, f"{provider} has no writable /ref/log"
+
+
+def test_diagnostic_workers_get_read_only_ref_and_shared_scratch():
+    # Provider workers read the conda environments and write only their execution outputs.
+    # Scratch stays on the shared volume because the orchestrator copies results out of it.
+    docs = render(SECRET_ARG, values="helm/ci/gh-actions-values.yaml")
+    for provider in ("esmvaltool", "pmp", "ilamb"):
+        assert _mount(docs, provider, "/ref")["readOnly"] is True
+        assert _mount(docs, provider, "/ref/scratch")["subPath"] == "scratch"
+
+
+def test_orchestrator_and_migrate_job_can_write_ref():
+    # The orchestrator runs `providers setup` and copies scratch into results,
+    # and migrations write the database, which defaults to SQLite under /ref.
+    docs = render(SECRET_ARG, values="helm/ci/gh-actions-values.yaml")
+    assert _mount(docs, "orchestrator", "/ref").get("readOnly") is not True
+    job = find(docs, "Job", "-migrate")["spec"]["template"]["spec"]["containers"][0]
+    ref = next(m for m in job["volumeMounts"] if m["mountPath"] == "/ref")
+    assert ref.get("readOnly") is not True
+
+
+@pytest.mark.parametrize("component", ["api", "flower"])
+def test_http_route_renders_the_configured_filters(component):
+    # A filter that silently vanishes leaves a route the operator believes is gated behind auth.
+    middleware = {
+        "type": "ExtensionRef",
+        "extensionRef": {"group": "traefik.io", "kind": "Middleware", "name": "forwardauth"},
+    }
+    values = {"api": {"env": {"SECRET_KEY": PLACEHOLDER_SECRET}}}
+    values.setdefault(component, {})["httpRoute"] = {"enabled": True, "filters": [middleware]}
+    docs = render(values=values)
+    route = find(docs, "HTTPRoute", f"-{component}")
+    assert route["spec"]["rules"][0]["filters"] == [middleware]
+
+
+@pytest.mark.parametrize("component", ["api", "flower"])
+def test_http_route_omits_filters_when_none_are_set(component):
+    values = {"api": {"env": {"SECRET_KEY": PLACEHOLDER_SECRET}}}
+    values.setdefault(component, {})["httpRoute"] = {"enabled": True}
+    docs = render(values=values)
+    assert "filters" not in find(docs, "HTTPRoute", f"-{component}")["spec"]["rules"][0]
+
+
+def _mount_paths(workload: dict) -> set[str]:
+    mounts = workload["spec"]["template"]["spec"]["containers"][0].get("volumeMounts", [])
+    return {m["mountPath"] for m in mounts}
+
+
+def test_migrate_job_follows_an_orchestrator_only_env_override():
+    # The Job migrates the database the orchestrator then talks to.
+    # Taking env from `defaults` while taking volumes from the orchestrator would let a
+    # migration run against a different database than the app uses.
+    docs = render(SECRET_ARG, "orchestrator.env.REF_DATABASE_URL=sqlite:////ref/db/other.db")
+    secret = find(docs, "Secret", "-migrate")
+    assert secret["stringData"]["REF_DATABASE_URL"] == "sqlite:////ref/db/other.db"
+
+
+@pytest.mark.parametrize("values", ["helm/ci/minimal-values.yaml", "helm/local-test-values.yaml"])
+def test_orchestrator_and_migrate_job_inherit_the_default_ref_mount(values):
+    # These files mount /ref through `defaults` alone and never name the orchestrator's volumes.
+    # An empty `volumes` list in the orchestrator block replaces that inherited list rather than
+    # falling back to it, which left the pod with no /ref and a read-only root filesystem.
+    docs = render(SECRET_ARG, values=values)
+    assert "/ref" in _mount_paths(find(docs, "Deployment", "-orchestrator"))
+    assert "/ref" in _mount_paths(find(docs, "Job", "-migrate"))
