@@ -132,7 +132,7 @@ but narrowing access means a buggy or compromised diagnostic cannot clobber anot
 | `/ref/scratch`  | —   | RW               | RW           | —           |
 | `/ref/results`  | RO  | —                | RW           | —           |
 | `/ref/db`       | RW  | RW               | RW           | RW          |
-| `/ref/log`      | —   | —                | RW           | —           |
+| `/ref/log`      | —   | RW               | RW           | RW          |
 
 The split follows from how the work is dispatched:
 
@@ -142,8 +142,10 @@ The split follows from how the work is dispatched:
   That queue carries `handle_result`, which copies each execution from scratch into results.
 - `/ref/scratch` must stay a **shared** volume, not a per-pod `emptyDir`.
   The worker writes the outputs and the orchestrator reads them back out from a different pod, so a per-pod scratch loses every result.
+- `/ref/log` is written by every Celery worker, not just the orchestrator.
+  A worker opens a log file there as it starts, so a read-only `/ref/log` stops the worker before it consumes anything.
 - `/ref/db` only matters with the default SQLite database.
-  Point `REF_DATABASE_URL` at Postgres and the API and workers no longer need to write anywhere under `/ref`.
+  Point `REF_DATABASE_URL` at Postgres and the API no longer needs to write anywhere under `/ref` except the log directory.
 
 #### Minimal working example
 
@@ -175,6 +177,9 @@ defaults:
   - name: ref
     mountPath: /ref/scratch   # shared with the orchestrator, which copies results out
     subPath: scratch
+  - name: ref
+    mountPath: /ref/log       # every worker opens a log file here as it starts
+    subPath: log
   - name: ref
     mountPath: /ref/db        # drop this once REF_DATABASE_URL points at Postgres
     subPath: db

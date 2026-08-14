@@ -64,6 +64,10 @@ defaults:
     mountPath: /ref/scratch
     subPath: scratch
     readOnly: false
+  - name: gha-cached
+    mountPath: /ref/log
+    subPath: log
+    readOnly: false
   - name: tmp
     mountPath: /tmp
     readOnly: false

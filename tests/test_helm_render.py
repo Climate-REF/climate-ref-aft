@@ -726,6 +726,16 @@ def test_orchestrator_left_under_providers_fails_with_a_migration_message():
     assert "providers.orchestrator moved to the top-level `orchestrator` block" in result.stderr
 
 
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_every_worker_can_write_its_log_directory(provider):
+    # climate_ref_celery.app opens a loguru file sink under config.paths.log as the worker starts,
+    # so a read-only /ref/log stops the worker before it consumes a single task.
+    docs = render(SECRET_ARG, values="helm/ci/gh-actions-values.yaml")
+    mounts = _container(docs, provider).get("volumeMounts", [])
+    writable = {m["mountPath"] for m in mounts if not m.get("readOnly")}
+    assert writable & {"/ref", "/ref/log"}, f"{provider} has no writable /ref/log"
+
+
 def test_diagnostic_workers_get_read_only_ref_and_shared_scratch():
     # Provider workers read the conda environments and write only their execution outputs.
     # Scratch stays on the shared volume because the orchestrator copies results out of it.
