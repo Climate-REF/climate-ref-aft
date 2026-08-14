@@ -29,10 +29,10 @@ jobs:
             description: "Test with latest core and available providers from main branches"
     name: ${{ matrix.name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v9.0.0
 
       - name: Install pinned dependencies
         run: uv sync --all-extras

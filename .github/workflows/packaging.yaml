@@ -30,8 +30,8 @@ jobs:
     outputs:
       generated-semver: ${{ steps.semantic-version.outputs.generated-semver }}
     steps:
-    - uses: actions/checkout@v6
-    - uses: actions/setup-python@v6
+    - uses: actions/checkout@v7
+    - uses: actions/setup-python@v7
     - name: Install yq
       run: |
         pip install yq
@@ -68,11 +68,11 @@ jobs:
     timeout-minutes: 10
     needs: [helm]
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Start minikube
       uses: medyagh/setup-minikube@latest
     - name: Set up Helm
-      uses: azure/setup-helm@v4.3.1
+      uses: azure/setup-helm@v5.0.1
     - name: Install Chart (minimal)
       run: |
         helm install test oci://ghcr.io/climate-ref/charts/climate-ref-aft \
@@ -117,10 +117,10 @@ jobs:
     timeout-minutes: 30
     needs: [helm]
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Cache Sample Data (Restore)
       id: cache-sample-data-restore
-      uses: actions/cache/restore@v5
+      uses: actions/cache/restore@v6
       with:
         path: ${{ github.workspace }}/cache/ref-config
         key: ${{ runner.os }}-sample-data
@@ -139,7 +139,7 @@ jobs:
         memory: 12g
         mount-path: '${{ github.workspace }}/cache/ref-config:/cache/ref-config'
     - name: Set up Helm
-      uses: azure/setup-helm@v4.3.1
+      uses: azure/setup-helm@v5.0.1
     - name: Install Chart
       run: |
         helm install test oci://ghcr.io/climate-ref/charts/climate-ref-aft \
@@ -178,7 +178,7 @@ jobs:
         sudo chmod -R a+rX ${GITHUB_WORKSPACE}/cache/ref-config
 
     - name: Cache Sample Data (Save)
-      uses: actions/cache/save@v5
+      uses: actions/cache/save@v6
       with:
         path: ${{ github.workspace }}/cache/ref-config
         key: ${{ runner.os }}-sample-data
