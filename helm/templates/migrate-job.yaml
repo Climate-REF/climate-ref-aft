@@ -1,4 +1,4 @@
-{{- /* Migrations write the database, so use the orchastrator defaults. */ -}}
+{{- /* Migrations write the database, so use the orchestrator defaults. */ -}}
 {{- $migrate := mergeOverwrite (deepCopy .Values.defaults) (omit (.Values.orchestrator | default dict) "enabled" "resources") -}}
 apiVersion: v1
 kind: Secret
