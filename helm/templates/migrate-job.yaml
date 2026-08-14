@@ -1,3 +1,7 @@
+{{- /* Migrations write the database, which with the default SQLite URL lives under /ref.
+       So the Job takes the orchestrator's mounts, the ones sized for write access,
+       rather than the narrower `defaults` a diagnostic worker gets. */ -}}
+{{- $migrate := mergeOverwrite (deepCopy .Values.defaults) (omit (.Values.orchestrator | default dict) "enabled" "resources") -}}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -48,11 +52,11 @@ spec:
         {{- with .Values.defaults.extraEnvFrom }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.defaults.volumeMounts }}
+        {{- with $migrate.volumeMounts }}
         volumeMounts:
           {{- toYaml . | nindent 10 }}
         {{- end }}
-      {{- with .Values.defaults.volumes }}
+      {{- with $migrate.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
       {{- end }}
