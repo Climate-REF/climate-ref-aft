@@ -49,8 +49,7 @@ defaults:
       cpu: 1
       memory: 1Gi
   # Diagnostic workers read the config and the conda envs, and write only scratch.
-  # `/ref/scratch` has to stay shared with the orchestrator, which copies the
-  # execution outputs out of it, so it is a subPath of the same volume rather than an emptyDir.
+  # `/ref/scratch` has to stay shared with the orchestrator.
   volumes:
   - name: gha-cached
     hostPath:

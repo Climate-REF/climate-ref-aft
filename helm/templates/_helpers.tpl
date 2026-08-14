@@ -85,9 +85,6 @@ because a pod naming an account the chart does not create is not admitted.
 
 {{/*
 The set of Celery worker instances the chart renders: the providers plus the orchestrator.
-The orchestrator is a worker like any other, so it shares every provider template,
-but it carries its own top-level values block because its access to `/ref` differs from a provider's.
-Returns YAML, so callers pipe it through `fromYaml`.
 */}}
 {{- define "ref.workerInstances" -}}
 {{- $instances := omit .Values.providers "defaults" -}}
@@ -114,7 +111,6 @@ Resolve a provider's effective spec: the shared defaults with the provider's own
 Takes a dict of `root` (the top level context) and `spec` (the provider's own values).
 Every provider template must resolve its spec through here,
 so that override precedence is defined in one place rather than per object.
-Returns YAML, so callers pipe it through `fromYaml`.
 */}}
 {{- define "ref.providerSpec" -}}
 {{- toYaml (mergeOverwrite (deepCopy .root.Values.defaults) (.spec | default dict)) -}}

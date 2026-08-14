@@ -122,8 +122,8 @@ You must wire up these volumes in your `values.yaml`, otherwise pods will crash 
 #### Who writes what
 
 `/ref` is one volume, but the components need very different access to it.
-Granting every pod RW on the whole tree works, and is what earlier versions of this chart documented.
-Narrowing it means a buggy or compromised diagnostic cannot clobber another provider's conda environment.
+Granting every pod RW on the whole tree works,
+but narrowing access means a buggy or compromised diagnostic cannot clobber another provider's conda environment.
 
 | Subpath         | API | Provider workers | Orchestrator | Migrate Job |
 | --------------- | --- | ---------------- | ------------ | ----------- |
@@ -140,7 +140,6 @@ The split follows from how the work is dispatched:
   They read the conda environments and write their execution outputs to scratch.
 - The orchestrator runs `celery start-worker` with no `--provider`, so it is the only pod consuming the default `celery` queue.
   That queue carries `handle_result`, which copies each execution from scratch into results.
-  It is also the pod you exec into to run `ref providers setup`, which is what writes `/ref/software`.
 - `/ref/scratch` must stay a **shared** volume, not a per-pod `emptyDir`.
   The worker writes the outputs and the orchestrator reads them back out from a different pod, so a per-pod scratch loses every result.
 - `/ref/db` only matters with the default SQLite database.
