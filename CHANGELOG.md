@@ -7,6 +7,24 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.5.5 (2026-08-16)
+
+### Breaking Changes
+
+- Move the orchestrator from `providers.orchestrator` to a top-level `orchestrator` block.
+  Provider workers now default to a read-only `/ref` with a shared read-write `/ref/scratch`,
+  while the orchestrator and the migrate Job keep write access to the whole tree. ([#39](https://github.com/Climate-REF/climate-ref-aft/pulls/39))
+
+### Bug Fixes
+
+- Render `api.httpRoute.filters` and `flower.httpRoute.filters` on the HTTPRoute rule.
+  Filters set in values were silently dropped, so a route intended to sit behind a forward-auth Middleware was reachable without it. ([#39](https://github.com/Climate-REF/climate-ref-aft/pulls/39))
+
+### Trivial/Internal Changes
+
+- [#42](https://github.com/Climate-REF/climate-ref-aft/pulls/42)
+
+
 ## climate-ref-aft 0.5.4 (2026-08-13)
 
 ### Improvements
