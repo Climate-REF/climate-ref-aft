@@ -737,6 +737,11 @@ Set `runningTasks.query` to override it, for instance to hold a whole provider u
 The chart's ServiceMonitor is the assumed scrape path, so a query that names other labels
 depends on how your own Prometheus relabels them.
 
+Flower keeps reporting a worker's last value after the pod is gone, unless it runs with
+`--purge-offline-workers`, and the selector matches dead pod names too.
+A worker killed mid-diagnostic therefore pins one replica the instance never sheds.
+The error is in the safe direction, but set that flag on Flower if it bites.
+
 | Parameter                           | Description                                       | Default           |
 | ----------------------------------- | ------------------------------------------------- | ----------------- |
 | `keda.enabled`                      | Render a ScaledObject for this instance           | `false`           |
