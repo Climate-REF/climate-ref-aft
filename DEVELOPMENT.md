@@ -13,9 +13,9 @@ docker compose -f docker/docker-compose.yaml up -d
 bash scripts/smoke-test.sh
 ```
 
-`scripts/smoke-test.sh` ingests sample data, runs a small solve across all
-providers, and then hits the `ref-app` API to confirm the records the workers
-wrote are visible to the API.
+`scripts/smoke-test.sh` ingests sample data, runs a small solve across the three
+Fast Track providers, and then hits the `ref-app` API to confirm the records the
+workers wrote are visible to the API.
 
 ## Kubernetes (Helm)
 
