@@ -7,6 +7,26 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.6.1 (2026-08-17)
+
+### Features
+
+- Adds a `keda` block to the worker `defaults`,
+  rendering a KEDA ScaledObject that scales a worker on the depth of the queues it consumes,
+  down to zero when they are empty.
+
+  - The chart derives one redis trigger per queue the instance consumes, pointed at the bundled Dragonfly.
+  - An optional Prometheus trigger holds the pods up while a diagnostic is still executing.
+
+  This replaces `autoscaling` rather than layering on it,
+  because two autoscalers on one Deployment fight over its replica count.
+
+  ([#48](https://github.com/Climate-REF/climate-ref-aft/pulls/48))
+- Adds `api.priorityClassName` and `defaults.priorityClassName`,
+  so the API and the workers can be given separate scheduling priorities.
+  The worker value is overridable per instance, letting one provider sit below the rest. ([#49](https://github.com/Climate-REF/climate-ref-aft/pulls/49))
+
+
 ## climate-ref-aft 0.6.0 (2026-08-17)
 
 No significant changes.
