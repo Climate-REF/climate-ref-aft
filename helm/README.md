@@ -710,12 +710,11 @@ providers:
 ```
 
 The triggers point at the bundled Dragonfly.
-With `dragonfly.enabled: false` set `keda.redisAddress`, because the scaler wants a bare `host:port`
-and cannot reuse `externalBroker.url`.
+With `dragonfly.enabled: false` set `keda.redisAddress`,
+because the scaler wants a bare `host:port` and cannot reuse `externalBroker.url`.
 
 A size-split instance with `queues: [esmvaltool, esmvaltool-large]` gets a trigger for each.
-KEDA takes the highest count any one trigger asks for rather than the sum,
-so two deep queues scale for the deeper one.
+KEDA takes the highest count any one trigger asks for rather than the sum, so two deep queues scale for the deeper one.
 That under-provisions rather than over-provisions, and `maxReplicaCount` bounds it anyway.
 
 #### Scale-down
@@ -725,15 +724,15 @@ so a diagnostic can still be running with nothing left to see.
 Either of two values covers that gap:
 
 - `cooldownPeriod` waits at zero depth before scaling in.
-  Left empty it tracks the worker's own `CELERY_TASK_TIME_LIMIT`, so the default is already safe.
+  Left empty it tracks the worker's own `CELERY_TASK_TIME_LIMIT`.
+  This can be several hours for longer tasks, but this avoids scaling in a running queue.
 - `runningTasks` adds a Prometheus trigger on Flower's currently-executing-tasks metric,
   which holds a busy pod up directly. The cooldown then falls back to 30 minutes.
 
-Setting `cooldownPeriod` below the task limit fails the render, unless `runningTasks` or an
-`extraTriggers` entry reports work in flight.
-The check only sees a limit written literally under `env`, so one arriving through `extraEnvFrom`
-leaves the cooldown yours to get right.
-Raising `minReplicaCount` is not a way out, because it bounds how far KEDA scales in, not whether it does.
+Setting `cooldownPeriod` below the task limit fails the render,
+unless `runningTasks` or an `extraTriggers` entry reports work in flight.
+The check only sees a limit written literally under `env`,
+so one arriving through `extraEnvFrom` leaves the cooldown yours to get right.
 
 `runningTasks` needs only a Prometheus address:
 
@@ -744,28 +743,28 @@ runningTasks:
 ```
 
 The query defaults to this instance's own pods, matched on the `worker` label Flower already emits.
-That needs no metric relabeling, and it keeps `esmvaltool-large` from holding up the plain
-`esmvaltool` pods. Override it with `runningTasks.query`.
+That needs no metric relabeling, and it keeps `esmvaltool-large` from holding up the plain `esmvaltool` pods.
+Override it with `runningTasks.query`.
 
-One caveat: Flower keeps reporting a dead worker's last value unless it runs with
-`--purge-offline-workers`, so a worker killed mid-diagnostic pins a replica the instance never sheds.
+One caveat: Flower keeps reporting a dead worker's last value unless it runs with `--purge-offline-workers`,
+so a worker killed mid-diagnostic pins a replica the instance never sheds.
 
-| Parameter                           | Description                                       | Default           |
-| ----------------------------------- | ------------------------------------------------- | ----------------- |
-| `keda.enabled`                      | Render a ScaledObject for this instance           | `false`           |
-| `keda.minReplicaCount`              | Replicas when the queues are empty                | `0`               |
-| `keda.maxReplicaCount`              | Ceiling on scale-out                              | `4`               |
-| `keda.cooldownPeriod`               | Seconds at zero depth before scaling in           | task limit        |
-| `keda.pollingInterval`              | Seconds between trigger checks                    | `15`              |
-| `keda.redisAddress`                 | Broker as `host:port`                             | bundled Dragonfly |
-| `keda.listLength`                   | Queued tasks per replica                          | `"1"`             |
-| `keda.redisMetadata`                | Merged over every redis trigger                   | `{}`              |
-| `keda.runningTasks.enabled`         | Add the busy-worker Prometheus trigger            | `false`           |
-| `keda.runningTasks.serverAddress`   | Prometheus to query                               | `""`              |
-| `keda.runningTasks.query`           | Overrides the query matching this instance's pods | `""`              |
-| `keda.runningTasks.threshold`       | Executing tasks per replica                       | `"1"`             |
-| `keda.advanced`                     | Raw KEDA `advanced` block, for HPA behaviour      | `{}`              |
-| `keda.extraTriggers`                | Raw KEDA triggers appended to the generated ones  | `[]`              |
+| Parameter                         | Description                                       | Default           |
+| --------------------------------- | ------------------------------------------------- | ----------------- |
+| `keda.enabled`                    | Render a ScaledObject for this instance           | `false`           |
+| `keda.minReplicaCount`            | Replicas when the queues are empty                | `0`               |
+| `keda.maxReplicaCount`            | Ceiling on scale-out                              | `4`               |
+| `keda.cooldownPeriod`             | Seconds at zero depth before scaling in           | task limit        |
+| `keda.pollingInterval`            | Seconds between trigger checks                    | `15`              |
+| `keda.redisAddress`               | Broker as `host:port`                             | bundled Dragonfly |
+| `keda.listLength`                 | Queued tasks per replica                          | `"1"`             |
+| `keda.redisMetadata`              | Merged over every redis trigger                   | `{}`              |
+| `keda.runningTasks.enabled`       | Add the busy-worker Prometheus trigger            | `false`           |
+| `keda.runningTasks.serverAddress` | Prometheus to query                               | `""`              |
+| `keda.runningTasks.query`         | Overrides the query matching this instance's pods | `""`              |
+| `keda.runningTasks.threshold`     | Executing tasks per replica                       | `"1"`             |
+| `keda.advanced`                   | Raw KEDA `advanced` block, for HPA behaviour      | `{}`              |
+| `keda.extraTriggers`              | Raw KEDA triggers appended to the generated ones  | `[]`              |
 
 `replicaCount` is ignored on an instance with `keda.enabled`, because the autoscaler owns the field.
 `redisMetadata` carries the scaler options the chart does not name, such as `enableTLS` or `passwordFromEnv`.
