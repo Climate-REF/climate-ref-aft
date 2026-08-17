@@ -7,6 +7,31 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.6.2 (2026-08-17)
+
+### Improvements
+
+- Removes `api.env.SECRET_KEY` and the render guard that enforced it.
+  The setting was a leftover from the FastAPI template ref-app was generated from, and nothing ever read it.
+  The guard therefore failed a production render to protect a value that signed nothing.
+  ref-app dropped the setting in v0.4.2, and its `Settings` ignores unknown variables,
+  so an operator who still sets it just carries a dead entry in the API Secret.
+
+  Bumps the API image to `ghcr.io/climate-ref/climate-ref-frontend:v0.4.2`,
+  which also bundles climate-ref 0.17.2 to match the pinned components. ([#52](https://github.com/Climate-REF/climate-ref-aft/pulls/52))
+
+### Bug Fixes
+
+- Names the three Assessment Fast Track providers in `REF_DIAGNOSTIC_PROVIDERS`,
+  in the Helm chart and in the Compose stack.
+  Previously the REF discovered providers from the entry points installed in the image,
+  so the example provider was enrolled into the solve and its executions queued with no worker to run them.
+
+  `ref-init` no longer generates `/ref/ref.toml`.
+  A provider list in that file is read in preference to the environment,
+  so generating it froze whatever discovery happened to find. ([#51](https://github.com/Climate-REF/climate-ref-aft/pulls/51))
+
+
 ## climate-ref-aft 0.6.1 (2026-08-17)
 
 ### Features
