@@ -868,17 +868,21 @@ def test_keda_and_hpa_together_fail_with_a_clear_message():
     assert "autoscaling.enabled and keda.enabled both set" in result.stderr
 
 
+RUNNING_TASKS_QUERY = "sum(flower_worker_number_of_currently_executing_tasks{provider='pmp'})"
+
+
 def test_keda_running_tasks_trigger_holds_a_busy_worker_up():
     docs = render(
         SECRET_ARG,
         "providers.pmp.keda.enabled=true",
         "providers.pmp.keda.runningTasks.enabled=true",
         "providers.pmp.keda.runningTasks.serverAddress=http://prometheus.monitoring.svc:9090",
+        f"providers.pmp.keda.runningTasks.query={RUNNING_TASKS_QUERY}",
     )
     triggers = find(docs, "ScaledObject", "-pmp")["spec"]["triggers"]
     prometheus = [t for t in triggers if t["type"] == "prometheus"]
     assert len(prometheus) == 1
-    assert 'provider="pmp"' in prometheus[0]["metadata"]["query"]
+    assert prometheus[0]["metadata"]["query"] == RUNNING_TASKS_QUERY
 
 
 def test_keda_running_tasks_trigger_needs_a_prometheus_address():
@@ -889,6 +893,34 @@ def test_keda_running_tasks_trigger_needs_a_prometheus_address():
     )
     assert result.returncode != 0
     assert "keda.runningTasks.serverAddress" in result.stderr
+
+
+def test_keda_running_tasks_trigger_needs_a_query():
+    # Flower labels the metric by worker, not by provider, so the chart cannot guess
+    # the labels a query must match without knowing how Prometheus relabels the scrape.
+    result = _render(
+        SECRET_ARG,
+        "providers.pmp.keda.enabled=true",
+        "providers.pmp.keda.runningTasks.enabled=true",
+        "providers.pmp.keda.runningTasks.serverAddress=http://prometheus.monitoring.svc:9090",
+    )
+    assert result.returncode != 0
+    assert "keda.runningTasks.query" in result.stderr
+
+
+@pytest.mark.parametrize("provider", ["esmvaltool", "pmp", "ilamb"])
+def test_scaled_object_watches_the_queue_the_worker_actually_consumes(provider):
+    # The ScaledObject names the queue itself, while the worker derives it from the
+    # provider's own `slug`. A provider whose slug left its name behind would leave the
+    # trigger watching a queue nothing publishes to, so the worker would never leave zero.
+    from climate_ref_core.providers import DiagnosticProvider
+
+    module = __import__(f"climate_ref_{provider}", fromlist=["provider"])
+    instance = module.provider
+    assert isinstance(instance, DiagnosticProvider)
+    docs = render(SECRET_ARG, f"providers.{provider}.keda.enabled=true")
+    triggers = find(docs, "ScaledObject", f"-{provider}")["spec"]["triggers"]
+    assert [t["metadata"]["listName"] for t in triggers] == [instance.slug]
 
 
 def test_keda_redis_metadata_carries_broker_options():

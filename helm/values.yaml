@@ -369,7 +369,8 @@ defaults:
 
     # A second trigger that holds the worker up while it is still executing,
     # so scale-down does not depend on the cooldown alone.
-    # The default query keys on the provider, so two instances of one provider hold each other up.
+    # `query` has no default because Flower labels its metrics by worker, not by provider,
+    # so what it must match depends on how your Prometheus scrapes and relabels them.
     runningTasks:
       enabled: false
       serverAddress: ""
