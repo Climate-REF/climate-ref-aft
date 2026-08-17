@@ -208,32 +208,17 @@ For ephemeral test deployments (no persistence across upgrades), `/ref` can also
 | `imagePullSecrets` | Docker registry secrets    | `[]`    |
 | `nameOverride`     | Override chart name        | `""`    |
 | `fullnameOverride` | Override full release name | `""`    |
-| `pinDiagnosticProviders` | Derive `REF_DIAGNOSTIC_PROVIDERS` from the deployed workers | `true` |
 
 ### Diagnostic providers
 
-The REF discovers its diagnostic providers from the entry points installed in the image.
-That set is wider than the workers a release deploys,
-so a provider with no worker still enters the solve and its executions queue forever.
+`REF_DIAGNOSTIC_PROVIDERS` names the three providers the Assessment Fast Track evaluates.
+Left unset the REF discovers providers from the entry points installed in the image,
+which is a wider set than the workers this chart deploys,
+so a provider with no worker enters the solve and its executions queue forever.
 
-The chart closes that gap by setting `REF_DIAGNOSTIC_PROVIDERS` on every component
-from the workers under `providers`,
-which keeps the orchestrator, the API and the migration Job reading one list.
-Each worker contributes `climate_ref_<provider>:provider`.
-Several instances of one provider collapse to a single entry,
-so a size-based queue does not name its provider twice.
-
-A provider packaged under a different name sets its own entry point:
-
-```yaml
-providers:
-  mydiag:
-    entryPoint: my_package:provider
-```
-
-An explicit `REF_DIAGNOSTIC_PROVIDERS` in `defaults.env` or an instance's `env` wins over the derived
-list. `pinDiagnosticProviders: false` stops the chart deriving one, and leaves an explicit value in
-place, so a release with neither falls back to the app's own discovery.
+The value appears twice, in `defaults.env` and in `api.env`,
+and the two must agree or the API lists executions no worker runs.
+Adding or removing a provider means editing the list and the `providers` block together.
 
 ### API Configuration
 
@@ -566,7 +551,7 @@ Environment variables can be set via `defaults.env` or per-provider:
 | `REF_EXECUTOR`          | Executor class            | `climate_ref_celery.executor.CeleryExecutor` |
 | `REF_CONFIGURATION`     | Path to REF configuration | `/ref`                                       |
 | `REF_SOFTWARE_ROOT`     | Path to conda environments| `/ref/software`                              |
-| `REF_DIAGNOSTIC_PROVIDERS` | Providers the solve considers | Derived from the deployed workers |
+| `REF_DIAGNOSTIC_PROVIDERS` | Providers the solve considers | The three Fast Track providers |
 | `HOME`                  | Home directory (writable) | `/tmp`                                       |
 
 ### Celery Reliability Settings

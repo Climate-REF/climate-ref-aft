@@ -13,7 +13,7 @@ metadata:
     "helm.sh/hook-weight": "-5"
     "helm.sh/hook-delete-policy": before-hook-creation
 stringData:
-  {{- include "ref.instanceEnv" (dict "root" . "spec" $migrate) | nindent 2 }}
+  {{- tpl (toYaml $migrate.env) . | nindent 2 }}
 ---
 apiVersion: batch/v1
 kind: Job

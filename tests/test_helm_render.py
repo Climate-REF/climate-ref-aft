@@ -252,50 +252,23 @@ def test_every_provider_inherits_the_shared_defaults(provider):
     assert env["REF_EXECUTOR"] == "climate_ref_celery.executor.CeleryExecutor"
 
 
-SHIPPED_PROVIDERS = "climate_ref_esmvaltool:provider,climate_ref_ilamb:provider,climate_ref_pmp:provider"
+AFT_PROVIDERS = "climate_ref_esmvaltool:provider,climate_ref_ilamb:provider,climate_ref_pmp:provider"
 
 
 @pytest.mark.parametrize("component", [*PROVIDERS, "api", "migrate"])
-def test_every_component_agrees_on_the_diagnostic_providers(component):
-    # The solve, the API reading its results and the migration all read one config.
-    # A component that discovers a different provider set reports executions no worker runs.
+def test_every_component_names_the_same_diagnostic_providers(component):
+    # Unset, the REF runs every provider installed in the image, including the example one.
+    # Two components disagreeing is worse still: the API lists executions no worker runs.
     env = _provider_env(render(SECRET_ARG), component)
-    assert env["REF_DIAGNOSTIC_PROVIDERS"] == SHIPPED_PROVIDERS
+    assert env["REF_DIAGNOSTIC_PROVIDERS"] == AFT_PROVIDERS
 
 
-def test_provider_aliases_contribute_one_entry_point():
-    # `esmvaltool-small` is a second deployment of the same provider, not a fourth provider.
-    docs = render(SECRET_ARG, "providers.esmvaltool-small.provider=esmvaltool")
-    assert _provider_env(docs, "orchestrator")["REF_DIAGNOSTIC_PROVIDERS"] == SHIPPED_PROVIDERS
-
-
-def test_a_provider_can_name_its_own_entry_point():
-    # The derived name assumes the `climate_ref_<provider>` package layout.
-    docs = render(SECRET_ARG, "providers.custom.entryPoint=my_pkg:provider")
-    entry_points = _provider_env(docs, "orchestrator")["REF_DIAGNOSTIC_PROVIDERS"].split(",")
-    assert "my_pkg:provider" in entry_points
-
-
-def test_an_explicit_provider_list_wins_over_the_derived_one():
-    docs = render(SECRET_ARG, "defaults.env.REF_DIAGNOSTIC_PROVIDERS=climate_ref_pmp:provider")
-    assert _provider_env(docs, "orchestrator")["REF_DIAGNOSTIC_PROVIDERS"] == "climate_ref_pmp:provider"
-
-
-def test_opting_out_leaves_the_app_to_discover_providers():
-    docs = render(SECRET_ARG, "pinDiagnosticProviders=false")
-    for component in [*PROVIDERS, "api", "migrate"]:
-        assert "REF_DIAGNOSTIC_PROVIDERS" not in _provider_env(docs, component)
-
-
-def test_opting_out_keeps_a_hand_written_provider_list():
-    # Opting out stops the chart deriving a list. It does not discard one the operator set.
-    docs = render(
-        SECRET_ARG,
-        "pinDiagnosticProviders=false",
-        "defaults.env.REF_DIAGNOSTIC_PROVIDERS=climate_ref_pmp:provider",
-    )
-    for component in [*PROVIDERS, "migrate"]:
-        assert _provider_env(docs, component)["REF_DIAGNOSTIC_PROVIDERS"] == "climate_ref_pmp:provider"
+def test_the_named_providers_are_the_ones_with_workers():
+    # The Fast Track evaluates these three, so the list and the deployed workers move together.
+    docs = render(SECRET_ARG)
+    named = _provider_env(docs, "orchestrator")["REF_DIAGNOSTIC_PROVIDERS"].split(",")
+    deployed = [p for p in PROVIDERS if p != "orchestrator"]
+    assert sorted(named) == sorted(f"climate_ref_{p}:provider" for p in deployed)
 
 
 def test_esmvaltool_config_is_rendered_and_mounted():

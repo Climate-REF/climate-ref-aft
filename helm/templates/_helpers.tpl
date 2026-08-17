@@ -193,34 +193,7 @@ so anything reading a value rather than passing it through must resolve it here 
 Returns a YAML mapping, so callers must pipe it through `fromYaml`.
 */}}
 {{- define "ref.instanceEnv" -}}
-{{- $env := deepCopy (.spec.env | default dict) -}}
-{{- $providers := include "ref.diagnosticProviders" .root -}}
-{{- if $providers -}}
-{{- $env = merge $env (dict "REF_DIAGNOSTIC_PROVIDERS" $providers) -}}
-{{- end -}}
-{{- tpl (toYaml $env) .root -}}
-{{- end -}}
-
-{{/*
-The diagnostic providers this release deploys, as a `REF_DIAGNOSTIC_PROVIDERS` value.
-Without it the REF discovers every provider entry point installed in the image,
-so a provider with no worker still enters the solve and its executions queue forever.
-Each worker contributes `climate_ref_<provider>:provider`, or its own `entryPoint` when set.
-Returns an empty string when pinning is off or the release deploys no diagnostic workers,
-so callers must test it. An empty value would read as discovery to the app anyway.
-*/}}
-{{- define "ref.diagnosticProviders" -}}
-{{- if ne (toString .Values.pinDiagnosticProviders) "false" -}}
-{{- $entryPoints := list -}}
-{{- range $instance, $spec := (fromYaml (include "ref.workerInstances" .)) -}}
-{{- $spec = include "ref.providerSpec" (dict "root" $ "spec" $spec) | fromYaml -}}
-{{- $provider := $spec.provider | default $instance -}}
-{{- if ne $provider "orchestrator" -}}
-{{- $entryPoints = append $entryPoints ($spec.entryPoint | default (printf "climate_ref_%s:provider" $provider)) -}}
-{{- end -}}
-{{- end -}}
-{{- join "," (sortAlpha (uniq $entryPoints)) -}}
-{{- end -}}
+{{- tpl (toYaml (.spec.env | default dict)) .root -}}
 {{- end -}}
 
 {{- define "ref.providerSecret" -}}

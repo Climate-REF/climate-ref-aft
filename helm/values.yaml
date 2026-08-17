@@ -2,10 +2,6 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# Set REF_DIAGNOSTIC_PROVIDERS from the workers below, so the solve only considers
-# providers this release actually runs. False restores the app's own entry point discovery.
-pinDiagnosticProviders: true
-
 api:
   enabled: true
   replicaCount: 1
@@ -20,6 +16,8 @@ api:
     LOG_LEVEL: INFO
     SECRET_KEY: ""                  # REQUIRED: override with a strong, unique value in production
     REF_CONFIGURATION: /ref
+    # Must match defaults.env, or the API lists providers the workers never run.
+    REF_DIAGNOSTIC_PROVIDERS: climate_ref_esmvaltool:provider,climate_ref_ilamb:provider,climate_ref_pmp:provider
 
   ingress:
     enabled: false
@@ -241,6 +239,9 @@ defaults:
     REF_EXECUTOR: climate_ref_celery.executor.CeleryExecutor
     REF_CONFIGURATION: /ref
     REF_SOFTWARE_ROOT: /ref/software
+    # The three providers the Assessment Fast Track evaluates.
+    # Unset, the REF instead runs every provider installed in the image, including the example one.
+    REF_DIAGNOSTIC_PROVIDERS: climate_ref_esmvaltool:provider,climate_ref_ilamb:provider,climate_ref_pmp:provider
     # Set HOME to writable location to fix intake-esgf and ilamb3 config directory creation
     HOME: /tmp
     # Celery reliability tuning (uncomment to override base.py defaults)
