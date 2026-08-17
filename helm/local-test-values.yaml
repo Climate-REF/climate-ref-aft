@@ -75,7 +75,6 @@ api:
     tag: latest
   env:
     ENVIRONMENT: local
-    SECRET_KEY: local-test-secret
     REF_DATABASE_URL: sqlite:////tmp/ref.db
     REF_CONFIGURATION: /ref
   volumes:

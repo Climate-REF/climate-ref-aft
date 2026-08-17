@@ -21,12 +21,6 @@ from climate_ref_celery.routing import RoutingTable
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHART = REPO_ROOT / "helm"
 
-# helm/values.yaml defaults to ENVIRONMENT=production with an empty SECRET_KEY,
-# which the ref.validateApiSecret guard rejects.
-# Every render that is not testing the guard itself supplies a placeholder.
-PLACEHOLDER_SECRET = "render-test-not-a-real-secret"  # noqa: S105
-SECRET_ARG = f"api.env.SECRET_KEY={PLACEHOLDER_SECRET}"
-
 pytestmark = pytest.mark.skipif(shutil.which("helm") is None, reason="helm is not installed")
 
 
@@ -89,7 +83,7 @@ VALUES_FILES = [
 
 @pytest.mark.parametrize("values", VALUES_FILES)
 def test_shipped_values_files_render(values):
-    docs = render(SECRET_ARG, values=values)
+    docs = render(values=values)
     assert docs, f"{values or 'helm/values.yaml'} rendered no objects"
 
 
@@ -107,32 +101,32 @@ def _worker_args(docs: list[dict], provider: str) -> list[str]:
 
 @pytest.mark.parametrize("provider", PROVIDERS)
 def test_each_provider_gets_a_worker_deployment(provider):
-    docs = render(SECRET_ARG)
+    docs = render()
     args = _worker_args(docs, provider)
     assert args[:4] == ["celery", "start-worker", "--loglevel", "DEBUG"]
 
 
 def test_orchestrator_worker_is_not_scoped_to_a_provider():
-    args = _worker_args(render(SECRET_ARG), "orchestrator")
+    args = _worker_args(render(), "orchestrator")
     assert "--provider" not in args
 
 
 @pytest.mark.parametrize("provider", ["esmvaltool", "pmp", "ilamb"])
 def test_diagnostic_workers_are_scoped_to_their_provider(provider):
-    args = _worker_args(render(SECRET_ARG), provider)
+    args = _worker_args(render(), provider)
     assert args[args.index("--provider") + 1] == provider
 
 
 def test_esmvaltool_worker_is_pinned_to_one_celery_child():
     # Each esmvaltool execution fans out via its own Dask cluster.
     # Extra Celery children multiply that footprint and OOM the node.
-    args = _worker_args(render(SECRET_ARG), "esmvaltool")
+    args = _worker_args(render(), "esmvaltool")
     assert "--concurrency=1" in args
 
 
 @pytest.mark.parametrize("provider", PROVIDERS)
 def test_workers_have_no_liveness_probe_by_default(provider):
-    docs = render(SECRET_ARG)
+    docs = render()
     assert "livenessProbe" not in _container(docs, provider)
 
 
@@ -141,7 +135,6 @@ def test_liveness_probe_pings_the_workers_own_celery_node(provider):
     # A wedged worker still passes a process check,
     # so the probe has to exercise the consumer loop of this pod specifically.
     docs = render(
-        SECRET_ARG,
         "defaults.livenessProbe.enabled=true",
         "defaults.livenessProbe.pingTimeoutSeconds=17",
     )
@@ -153,7 +146,6 @@ def test_liveness_probe_pings_the_workers_own_celery_node(provider):
 
 def test_liveness_probe_timings_are_configurable():
     docs = render(
-        SECRET_ARG,
         "defaults.livenessProbe.enabled=true",
         "defaults.livenessProbe.initialDelaySeconds=11",
         "defaults.livenessProbe.periodSeconds=22",
@@ -169,7 +161,6 @@ def test_liveness_probe_timings_are_configurable():
 
 def test_liveness_probe_can_be_enabled_for_one_provider_only():
     docs = render(
-        SECRET_ARG,
         "providers.ilamb.livenessProbe.enabled=true",
         "providers.ilamb.livenessProbe.periodSeconds=60",
     )
@@ -181,7 +172,6 @@ def test_liveness_probe_is_rejected_with_the_solo_pool():
     # The solo pool runs tasks in the main thread, so a busy worker cannot answer the ping
     # and every busy worker would be restarted.
     result = _render(
-        SECRET_ARG,
         "defaults.livenessProbe.enabled=true",
         "providers.pmp.extraArgs={--pool=solo}",
     )
@@ -192,7 +182,6 @@ def test_liveness_probe_is_rejected_with_the_solo_pool():
 def test_liveness_probe_guard_only_matches_the_pool_argument():
     # An extra argument that merely contains "solo" is not the solo pool.
     docs = render(
-        SECRET_ARG,
         "defaults.livenessProbe.enabled=true",
         "providers.pmp.extraArgs={--queues=solo-tests}",
     )
@@ -202,25 +191,11 @@ def test_liveness_probe_guard_only_matches_the_pool_argument():
 def test_liveness_probe_can_be_disabled_for_one_provider_only():
     # mergeOverwrite must not swallow a per-provider `false`.
     docs = render(
-        SECRET_ARG,
         "defaults.livenessProbe.enabled=true",
         "providers.ilamb.livenessProbe.enabled=false",
     )
     assert "livenessProbe" not in _container(docs, "ilamb")
     assert "livenessProbe" in _container(docs, "pmp")
-
-
-def test_production_render_fails_without_a_secret_key():
-    # helm/values.yaml ships ENVIRONMENT=production and an empty SECRET_KEY on purpose,
-    # so a bare render must fail rather than deploy a guessable key.
-    result = _render()
-    assert result.returncode != 0
-    assert "SECRET_KEY" in result.stderr
-
-
-def test_non_production_render_does_not_require_a_secret_key():
-    docs = render("api.env.ENVIRONMENT=local")
-    assert docs
 
 
 def _provider_env(docs: list[dict], provider: str) -> dict:
@@ -233,7 +208,7 @@ def _container_env(docs: list[dict], provider: str) -> dict:
 
 
 def test_provider_specific_env_does_not_leak_between_providers():
-    docs = render(SECRET_ARG)
+    docs = render()
     assert "ESMVALTOOL_CONFIG_DIR" in _container_env(docs, "esmvaltool")
     assert "ESMVALTOOL_CONFIG_DIR" not in _container_env(docs, "pmp")
     # The env var is template-managed container env, so no provider Secret carries it.
@@ -246,7 +221,7 @@ def test_provider_specific_env_does_not_leak_between_providers():
 
 @pytest.mark.parametrize("provider", PROVIDERS)
 def test_every_provider_inherits_the_shared_defaults(provider):
-    env = _provider_env(render(SECRET_ARG), provider)
+    env = _provider_env(render(), provider)
     assert env["HOME"] == "/tmp"  # noqa: S108
     assert env["REF_CONFIGURATION"] == "/ref"
     assert env["REF_EXECUTOR"] == "climate_ref_celery.executor.CeleryExecutor"
@@ -257,12 +232,12 @@ AFT_PROVIDERS = "climate_ref_esmvaltool:provider,climate_ref_ilamb:provider,clim
 
 @pytest.mark.parametrize("component", [*PROVIDERS, "api", "migrate"])
 def test_every_component_names_the_same_diagnostic_providers(component):
-    env = _provider_env(render(SECRET_ARG), component)
+    env = _provider_env(render(), component)
     assert env["REF_DIAGNOSTIC_PROVIDERS"] == AFT_PROVIDERS
 
 
 def test_the_named_providers_are_the_ones_with_workers():
-    docs = render(SECRET_ARG)
+    docs = render()
     deployed = set()
     for doc in docs:
         if doc.get("kind") != "Deployment":
@@ -275,7 +250,7 @@ def test_the_named_providers_are_the_ones_with_workers():
 
 
 def test_esmvaltool_config_is_rendered_and_mounted():
-    docs = render(SECRET_ARG)
+    docs = render()
     configmap = find(docs, "ConfigMap", "-esmvaltool-config")
     config = yaml.safe_load(configmap["data"]["config.yaml"])
     assert config["max_parallel_tasks"] == 2
@@ -290,12 +265,12 @@ def test_esmvaltool_config_dir_survives_an_env_override():
     # esmvalcore silently ignores a config dir that ESMVALTOOL_CONFIG_DIR does not point at,
     # so the env var must ride with the mount in the deployment template
     # rather than sit in values.yaml where an override can drop it. See issue #28.
-    docs = render(SECRET_ARG, "providers.esmvaltool.env=null")
+    docs = render("providers.esmvaltool.env=null")
     assert _container_env(docs, "esmvaltool")["ESMVALTOOL_CONFIG_DIR"] == "/etc/esmvaltool"
 
 
 def test_esmvaltool_config_can_be_opted_out():
-    docs = render(SECRET_ARG, "providers.esmvaltool.config=null")
+    docs = render("providers.esmvaltool.config=null")
     assert not [d for d in docs if d["metadata"]["name"].endswith("-esmvaltool-config")]
     pod = find(docs, "Deployment", "-esmvaltool")["spec"]["template"]["spec"]
     mounts = [m["name"] for m in pod["containers"][0].get("volumeMounts", [])]
@@ -308,7 +283,6 @@ def test_per_provider_values_override_the_shared_defaults():
     # Sprig `merge` gives precedence to its first argument,
     # so the defaults used to win on every populated key.
     docs = render(
-        SECRET_ARG,
         "providers.pmp.replicaCount=7",
         "providers.pmp.image.tag=override-tag",
         "providers.pmp.env.HOME=/override-home",
@@ -321,7 +295,6 @@ def test_per_provider_values_override_the_shared_defaults():
 
 def test_overriding_one_provider_does_not_affect_the_others():
     docs = render(
-        SECRET_ARG,
         "providers.pmp.replicaCount=7",
     )
     assert find(docs, "Deployment", "-ilamb")["spec"]["replicas"] == 1
@@ -330,7 +303,6 @@ def test_overriding_one_provider_does_not_affect_the_others():
 
 def test_external_broker_is_used_when_dragonfly_is_disabled():
     docs = render(
-        SECRET_ARG,
         "dragonfly.enabled=false",
         "externalBroker.url=redis://broker.example:6379",
     )
@@ -342,18 +314,17 @@ def test_external_broker_is_used_when_dragonfly_is_disabled():
 
 
 def test_disabling_dragonfly_without_a_broker_url_fails_with_a_clear_message():
-    result = _render(SECRET_ARG, "dragonfly.enabled=false")
+    result = _render("dragonfly.enabled=false")
     assert result.returncode != 0
     assert "externalBroker.url" in result.stderr
 
 
 def test_flower_only_waits_for_dragonfly_when_dragonfly_is_deployed():
-    with_dragonfly = find(render(SECRET_ARG), "Deployment", "-flower")
+    with_dragonfly = find(render(), "Deployment", "-flower")
     assert with_dragonfly["spec"]["template"]["spec"]["initContainers"]
 
     without = find(
         render(
-            SECRET_ARG,
             "dragonfly.enabled=false",
             "externalBroker.url=redis://broker.example:6379",
         ),
@@ -364,9 +335,8 @@ def test_flower_only_waits_for_dragonfly_when_dragonfly_is_deployed():
 
 
 def test_workers_only_wait_for_dragonfly_when_dragonfly_is_deployed():
-    docs = render(SECRET_ARG)
+    docs = render()
     without_broker_docs = render(
-        SECRET_ARG,
         "dragonfly.enabled=false",
         "externalBroker.url=redis://broker.example:6379",
     )
@@ -380,7 +350,7 @@ def test_workers_only_wait_for_dragonfly_when_dragonfly_is_deployed():
 
 
 def test_dragonfly_is_deployed_by_default():
-    docs = render(SECRET_ARG)
+    docs = render()
     assert [d for d in docs if d["metadata"]["name"].endswith("-dragonfly")]
     assert _provider_env(docs, "pmp")["CELERY_BROKER_URL"].startswith("redis://test-dragonfly")
 
@@ -407,14 +377,14 @@ def chart_without_broker_keys(tmp_path) -> Path:
 
 
 def test_absent_dragonfly_keys_still_render_with_the_bundled_broker(chart_without_broker_keys):
-    docs = render(SECRET_ARG, chart=chart_without_broker_keys)
+    docs = render(chart=chart_without_broker_keys)
     assert _provider_env(docs, "pmp")["CELERY_BROKER_URL"] == "redis://test-dragonfly:6379"
 
 
 def test_explicitly_nulling_dragonfly_enabled_fails_with_a_clear_message():
     # An explicit null reads as disabled. That is defensible, but it must produce
     # the actionable message rather than a nil pointer dereference.
-    result = _render(SECRET_ARG, "dragonfly.enabled=null")
+    result = _render("dragonfly.enabled=null")
     assert result.returncode != 0
     assert "externalBroker.url" in result.stderr
     assert "nil pointer" not in result.stderr
@@ -425,7 +395,6 @@ def test_broker_url_containing_an_apostrophe_survives_yaml_serialisation():
     # so an unescaped apostrophe in a broker password would break out of the scalar.
     url = "redis://:pa'ss@broker.example:6379/0"
     docs = render(
-        SECRET_ARG,
         "dragonfly.enabled=false",
         f"externalBroker.url={url}",
     )
@@ -435,14 +404,14 @@ def test_broker_url_containing_an_apostrophe_survives_yaml_serialisation():
 def test_local_test_values_do_not_hardcode_the_broker_service():
     # A hardcoded broker URL silently defeats externalBroker and breaks any
     # release whose name is not the one baked into the string.
-    docs = render(SECRET_ARG, values="helm/local-test-values.yaml")
+    docs = render(values="helm/local-test-values.yaml")
     assert _provider_env(docs, "pmp")["CELERY_BROKER_URL"] == "redis://test-dragonfly:6379"
 
 
 def test_flower_waits_for_dragonfly_when_the_enabled_key_is_absent(chart_without_broker_keys):
     # `ref.brokerUrl` treats an absent dragonfly.enabled as enabled, so the flower
     # init container must agree. Otherwise flower starts before its broker is ready.
-    docs = render(SECRET_ARG, chart=chart_without_broker_keys)
+    docs = render(chart=chart_without_broker_keys)
     flower = find(docs, "Deployment", "-flower")
     assert flower["spec"]["template"]["spec"].get("initContainers"), (
         "flower must still wait for the bundled broker when dragonfly.enabled is absent"
@@ -457,14 +426,14 @@ def test_each_provider_is_keyed_to_its_own_secret():
     # Hashing the whole rendered secret.yaml gave every worker the same checksum,
     # so a change to one provider's env restarted all of them
     # and re-ran whatever long executions were in flight.
-    docs = render(SECRET_ARG)
+    docs = render()
     checksums = {p: _pod_annotations(docs, p)["checksum/config"] for p in PROVIDERS}
     assert len(set(checksums.values())) == len(PROVIDERS), f"providers share a checksum: {checksums}"
 
 
 def test_changing_one_provider_env_does_not_restart_the_others():
-    before = render(SECRET_ARG)
-    after = render(SECRET_ARG, "providers.ilamb.env.DASK_SCHEDULER=threads")
+    before = render()
+    after = render("providers.ilamb.env.DASK_SCHEDULER=threads")
     assert _pod_annotations(after, "ilamb") != _pod_annotations(before, "ilamb")
     for provider in ("esmvaltool", "pmp", "orchestrator"):
         assert _pod_annotations(after, provider) == _pod_annotations(before, provider)
@@ -473,8 +442,8 @@ def test_changing_one_provider_env_does_not_restart_the_others():
 def test_changing_a_provider_config_restarts_that_worker():
     # The ConfigMap is remounted on upgrade, but the running process only rereads it on restart,
     # so the config has to take part in the pod annotations.
-    before = render(SECRET_ARG)
-    after = render(SECRET_ARG, "providers.esmvaltool.config.max_parallel_tasks=9")
+    before = render()
+    after = render("providers.esmvaltool.config.max_parallel_tasks=9")
     assert (
         _pod_annotations(after, "esmvaltool")["checksum/configmap"]
         != _pod_annotations(before, "esmvaltool")["checksum/configmap"]
@@ -483,12 +452,12 @@ def test_changing_a_provider_config_restarts_that_worker():
 
 def test_pod_annotations_cannot_clobber_the_rollout_checksums():
     # A duplicate key leaves the last one standing, so the chart-managed keys are rendered last.
-    docs = render(SECRET_ARG, "providers.ilamb.podAnnotations.checksum/config=stale")
+    docs = render("providers.ilamb.podAnnotations.checksum/config=stale")
     assert _pod_annotations(docs, "ilamb")["checksum/config"] != "stale"
 
 
 def test_only_providers_with_a_config_get_a_configmap_checksum():
-    docs = render(SECRET_ARG)
+    docs = render()
     assert "checksum/configmap" in _pod_annotations(docs, "esmvaltool")
     for provider in ("pmp", "ilamb", "orchestrator"):
         assert "checksum/configmap" not in _pod_annotations(docs, provider)
@@ -498,7 +467,6 @@ def test_any_provider_can_carry_a_chart_managed_config():
     # The config mount is driven by the provider's own values, not by a template
     # that knows esmvaltool by name.
     docs = render(
-        SECRET_ARG,
         "providers.pmp.config.foo=bar",
         "providers.pmp.configMountPath=/etc/pmp",
         "providers.pmp.configEnvVar=PMP_CONFIG_DIR",
@@ -513,7 +481,7 @@ def test_any_provider_can_carry_a_chart_managed_config():
 
 
 def test_a_config_without_a_mount_path_fails_with_a_clear_message():
-    result = _render(SECRET_ARG, "providers.pmp.config.foo=bar")
+    result = _render("providers.pmp.config.foo=bar")
     assert result.returncode != 0
     assert "providers.pmp: config is set, so configMountPath must be set too" in result.stderr
 
@@ -535,12 +503,12 @@ def _assert_wanted_service_accounts_exist(docs: list[dict], required: bool = Fal
 
 
 def test_no_deployment_references_a_service_account_that_is_not_created():
-    docs = render(SECRET_ARG, "providers.pmp.serviceAccount.create=null")
+    docs = render("providers.pmp.serviceAccount.create=null")
     _assert_wanted_service_accounts_exist(docs)
 
 
 def test_every_deployment_uses_its_own_service_account_by_default():
-    docs = render(SECRET_ARG)
+    docs = render()
     _assert_wanted_service_accounts_exist(docs, required=True)
 
 
@@ -548,7 +516,6 @@ def test_declining_to_create_a_service_account_omits_the_field():
     # Naming an account the chart does not create means the pod is never admitted,
     # so the field has to disappear rather than fall back to a default name.
     docs = render(
-        SECRET_ARG,
         "api.serviceAccount.create=false",
         "flower.serviceAccount.create=false",
         "providers.pmp.serviceAccount.create=false",
@@ -563,7 +530,6 @@ def test_a_custom_service_account_name_is_the_one_that_gets_created():
     # The deployment templates prefer serviceAccount.name, so the ServiceAccount
     # templates must create it under that same name or the pod cannot be admitted.
     docs = render(
-        SECRET_ARG,
         "providers.pmp.serviceAccount.name=my-sa",
         "api.serviceAccount.name=api-sa",
         "flower.serviceAccount.name=flower-sa",
@@ -664,7 +630,7 @@ def assert_no_orphan_queues(docs: list[dict]) -> None:
 
 
 def test_celery_routes_are_off_by_default():
-    docs = render(SECRET_ARG)
+    docs = render()
     assert not [d for d in docs if d["metadata"]["name"].endswith("-celery-routes")]
     assert "REF_CELERY_ROUTES" not in _container_env(docs, "esmvaltool")
     api = find(docs, "Deployment", "-api")["spec"]["template"]["spec"]["containers"][0]
@@ -672,7 +638,7 @@ def test_celery_routes_are_off_by_default():
 
 
 def test_celery_routes_render_as_valid_toml():
-    docs = render(SECRET_ARG, values=SIZE_VALUES)
+    docs = render(values=SIZE_VALUES)
     configmap = find(docs, "ConfigMap", "-celery-routes")
     table = tomllib.loads(configmap["data"]["routes.toml"])
     assert table["esmvaltool"]["rules"][0]["queue"] == "esmvaltool-large"
@@ -682,14 +648,14 @@ def test_celery_routes_render_as_valid_toml():
 def test_celery_routes_are_mounted_where_the_executor_can_run(component):
     # The API triggers solves, and an operator may exec `ref solve` in a worker pod,
     # so the table rides along everywhere.
-    docs = render(SECRET_ARG, values=SIZE_VALUES)
+    docs = render(values=SIZE_VALUES)
     path = _container_env(docs, component)["REF_CELERY_ROUTES"]
     mounts = {m["name"]: m["mountPath"] for m in _container(docs, component)["volumeMounts"]}
     assert path == f"{mounts['celery-routes']}/routes.toml"
 
 
 def test_worker_instance_can_run_a_provider_under_a_different_name():
-    docs = render(SECRET_ARG, values=SIZE_VALUES)
+    docs = render(values=SIZE_VALUES)
     args = _worker_args(docs, "esmvaltool-large")
     assert args[args.index("--provider") + 1] == "esmvaltool"
     assert "--queues=esmvaltool-large,esmvaltool-medium" in args
@@ -698,7 +664,7 @@ def test_worker_instance_can_run_a_provider_under_a_different_name():
 
 
 def test_split_esmvaltool_instances_get_their_own_config():
-    docs = render(SECRET_ARG, values=SIZE_VALUES)
+    docs = render(values=SIZE_VALUES)
     large = yaml.safe_load(find(docs, "ConfigMap", "-esmvaltool-large-config")["data"]["config.yaml"])
     assert large["max_parallel_tasks"] == 4
     default = yaml.safe_load(find(docs, "ConfigMap", "-esmvaltool-config")["data"]["config.yaml"])
@@ -708,14 +674,14 @@ def test_split_esmvaltool_instances_get_their_own_config():
 
 
 def test_size_values_route_to_no_orphan_queue():
-    assert_no_orphan_queues(render(SECRET_ARG, values=SIZE_VALUES))
+    assert_no_orphan_queues(render(values=SIZE_VALUES))
 
 
 @pytest.mark.parametrize("values", VALUES_FILES)
 def test_orphan_queue_guard_runs_against_shipped_values(values):
     # Trivially green today because no shipped values file sets celeryRoutes.
     # The guard bites when one gains a routing table.
-    assert_no_orphan_queues(render(SECRET_ARG, values=values))
+    assert_no_orphan_queues(render(values=values))
 
 
 def test_orphan_queue_guard_detects_a_queue_with_no_consumer():
@@ -723,7 +689,7 @@ def test_orphan_queue_guard_detects_a_queue_with_no_consumer():
         "celeryRoutes": '[esmvaltool]\nrules = [ { match = "*", queue = "esmvaltool-huge" } ]\n',
     }
     with pytest.raises(AssertionError, match="esmvaltool-huge"):
-        assert_no_orphan_queues(render(SECRET_ARG, values=values))
+        assert_no_orphan_queues(render(values=values))
 
 
 def _mount(docs: list[dict], component: str, path: str) -> dict:
@@ -733,18 +699,18 @@ def _mount(docs: list[dict], component: str, path: str) -> dict:
 
 
 def test_orchestrator_is_configured_from_its_own_top_level_block():
-    docs = render(SECRET_ARG, "orchestrator.replicaCount=3")
+    docs = render("orchestrator.replicaCount=3")
     assert find(docs, "Deployment", "-orchestrator")["spec"]["replicas"] == 3
 
 
 def test_orchestrator_can_be_disabled():
-    docs = render(SECRET_ARG, "orchestrator.enabled=false")
+    docs = render("orchestrator.enabled=false")
     assert not [d for d in docs if d["metadata"]["name"].endswith("-orchestrator")]
 
 
 def test_orchestrator_left_under_providers_fails_with_a_migration_message():
     # The stale key would otherwise render a second worker on the same `celery` queue.
-    result = _render(SECRET_ARG, "providers.orchestrator.replicaCount=1")
+    result = _render("providers.orchestrator.replicaCount=1")
     assert result.returncode != 0
     assert "providers.orchestrator moved to the top-level `orchestrator` block" in result.stderr
 
@@ -753,7 +719,7 @@ def test_orchestrator_left_under_providers_fails_with_a_migration_message():
 def test_every_worker_can_write_its_log_directory(provider):
     # climate_ref_celery.app opens a loguru file sink under config.paths.log as the worker starts,
     # so a read-only /ref/log stops the worker before it consumes a single task.
-    docs = render(SECRET_ARG, values="helm/ci/gh-actions-values.yaml")
+    docs = render(values="helm/ci/gh-actions-values.yaml")
     mounts = _container(docs, provider).get("volumeMounts", [])
     writable = {m["mountPath"] for m in mounts if not m.get("readOnly")}
     assert writable & {"/ref", "/ref/log"}, f"{provider} has no writable /ref/log"
@@ -762,7 +728,7 @@ def test_every_worker_can_write_its_log_directory(provider):
 def test_diagnostic_workers_get_read_only_ref_and_shared_scratch():
     # Provider workers read the conda environments and write only their execution outputs.
     # Scratch stays on the shared volume because the orchestrator copies results out of it.
-    docs = render(SECRET_ARG, values="helm/ci/gh-actions-values.yaml")
+    docs = render(values="helm/ci/gh-actions-values.yaml")
     for provider in ("esmvaltool", "pmp", "ilamb"):
         assert _mount(docs, provider, "/ref")["readOnly"] is True
         assert _mount(docs, provider, "/ref/scratch")["subPath"] == "scratch"
@@ -771,7 +737,7 @@ def test_diagnostic_workers_get_read_only_ref_and_shared_scratch():
 def test_orchestrator_and_migrate_job_can_write_ref():
     # The orchestrator runs `providers setup` and copies scratch into results,
     # and migrations write the database, which defaults to SQLite under /ref.
-    docs = render(SECRET_ARG, values="helm/ci/gh-actions-values.yaml")
+    docs = render(values="helm/ci/gh-actions-values.yaml")
     assert _mount(docs, "orchestrator", "/ref").get("readOnly") is not True
     job = find(docs, "Job", "-migrate")["spec"]["template"]["spec"]["containers"][0]
     ref = next(m for m in job["volumeMounts"] if m["mountPath"] == "/ref")
@@ -785,7 +751,7 @@ def test_http_route_renders_the_configured_filters(component):
         "type": "ExtensionRef",
         "extensionRef": {"group": "traefik.io", "kind": "Middleware", "name": "forwardauth"},
     }
-    values = {"api": {"env": {"SECRET_KEY": PLACEHOLDER_SECRET}}}
+    values = {}
     values.setdefault(component, {})["httpRoute"] = {"enabled": True, "filters": [middleware]}
     docs = render(values=values)
     route = find(docs, "HTTPRoute", f"-{component}")
@@ -794,7 +760,7 @@ def test_http_route_renders_the_configured_filters(component):
 
 @pytest.mark.parametrize("component", ["api", "flower"])
 def test_http_route_omits_filters_when_none_are_set(component):
-    values = {"api": {"env": {"SECRET_KEY": PLACEHOLDER_SECRET}}}
+    values = {}
     values.setdefault(component, {})["httpRoute"] = {"enabled": True}
     docs = render(values=values)
     assert "filters" not in find(docs, "HTTPRoute", f"-{component}")["spec"]["rules"][0]
@@ -809,7 +775,7 @@ def test_migrate_job_follows_an_orchestrator_only_env_override():
     # The Job migrates the database the orchestrator then talks to.
     # Taking env from `defaults` while taking volumes from the orchestrator would let a
     # migration run against a different database than the app uses.
-    docs = render(SECRET_ARG, "orchestrator.env.REF_DATABASE_URL=sqlite:////ref/db/other.db")
+    docs = render("orchestrator.env.REF_DATABASE_URL=sqlite:////ref/db/other.db")
     secret = find(docs, "Secret", "-migrate")
     assert secret["stringData"]["REF_DATABASE_URL"] == "sqlite:////ref/db/other.db"
 
@@ -819,7 +785,7 @@ def test_orchestrator_and_migrate_job_inherit_the_default_ref_mount(values):
     # These files mount /ref through `defaults` alone and never name the orchestrator's volumes.
     # An empty `volumes` list in the orchestrator block replaces that inherited list rather than
     # falling back to it, which left the pod with no /ref and a read-only root filesystem.
-    docs = render(SECRET_ARG, values=values)
+    docs = render(values=values)
     assert "/ref" in _mount_paths(find(docs, "Deployment", "-orchestrator"))
     assert "/ref" in _mount_paths(find(docs, "Job", "-migrate"))
 
@@ -834,12 +800,11 @@ def _scaled_components(docs: list[dict]) -> set[str]:
 
 
 def test_no_scaled_objects_without_keda():
-    assert not _scaled_components(render(SECRET_ARG))
+    assert not _scaled_components(render())
 
 
 def test_keda_scales_a_worker_on_its_own_queue():
     docs = render(
-        SECRET_ARG,
         "providers.pmp.keda.enabled=true",
     )
     assert _scaled_components(docs) == {"pmp"}
@@ -852,7 +817,6 @@ def test_keda_scales_a_worker_on_its_own_queue():
 def test_keda_worker_leaves_replicas_to_the_autoscaler():
     # A chart-set replicas fights KEDA back to the static count on every upgrade.
     docs = render(
-        SECRET_ARG,
         "providers.pmp.keda.enabled=true",
     )
     assert "replicas" not in find(docs, "Deployment", "-pmp")["spec"]
@@ -860,7 +824,6 @@ def test_keda_worker_leaves_replicas_to_the_autoscaler():
 
 def test_keda_watches_every_queue_a_split_instance_consumes():
     docs = render(
-        SECRET_ARG,
         "providers.esmvaltool.keda.enabled=true",
         "providers.esmvaltool.queues={esmvaltool,esmvaltool-large}",
     )
@@ -869,14 +832,13 @@ def test_keda_watches_every_queue_a_split_instance_consumes():
 
 
 def test_keda_scales_the_orchestrator_on_the_default_queue():
-    docs = render(SECRET_ARG, "orchestrator.keda.enabled=true")
+    docs = render("orchestrator.keda.enabled=true")
     triggers = find(docs, "ScaledObject", "-orchestrator")["spec"]["triggers"]
     assert [t["metadata"]["listName"] for t in triggers] == ["celery"]
 
 
 def test_keda_points_at_the_bundled_broker_by_default():
     docs = render(
-        SECRET_ARG,
         "providers.pmp.keda.enabled=true",
     )
     address = find(docs, "ScaledObject", "-pmp")["spec"]["triggers"][0]["metadata"]["address"]
@@ -885,7 +847,6 @@ def test_keda_points_at_the_bundled_broker_by_default():
 
 def test_keda_without_the_bundled_broker_needs_an_explicit_address():
     result = _render(
-        SECRET_ARG,
         "dragonfly.enabled=false",
         "externalBroker.url=redis://elsewhere:6379",
         "providers.pmp.keda.enabled=true",
@@ -896,7 +857,6 @@ def test_keda_without_the_bundled_broker_needs_an_explicit_address():
 
 def test_keda_and_hpa_together_fail_with_a_clear_message():
     result = _render(
-        SECRET_ARG,
         "providers.pmp.keda.enabled=true",
         "providers.pmp.autoscaling.enabled=true",
     )
@@ -919,7 +879,7 @@ RUNNING_TASKS_ARGS = (
 
 
 def test_keda_running_tasks_trigger_holds_a_busy_worker_up():
-    docs = render(SECRET_ARG, *RUNNING_TASKS_ARGS)
+    docs = render(*RUNNING_TASKS_ARGS)
     assert "flower_worker_number_of_currently_executing_tasks" in _prometheus_query(docs, "pmp")
 
 
@@ -927,7 +887,6 @@ def test_keda_running_tasks_query_matches_this_instance_only():
     # Flower labels the metric `celery@<pod>`, so the selector must not let a size-split
     # instance hold up the plain one, which is what a bare provider prefix would do.
     docs = render(
-        SECRET_ARG,
         "providers.esmvaltool.keda.enabled=true",
         "providers.esmvaltool.keda.runningTasks.enabled=true",
         "providers.esmvaltool.keda.runningTasks.serverAddress=http://prom:9090",
@@ -940,7 +899,6 @@ def test_keda_running_tasks_query_matches_this_instance_only():
 
 def test_keda_running_tasks_query_is_overridable():
     docs = render(
-        SECRET_ARG,
         *RUNNING_TASKS_ARGS,
         "providers.pmp.keda.runningTasks.query=sum(something_else)",
     )
@@ -949,7 +907,6 @@ def test_keda_running_tasks_query_is_overridable():
 
 def test_keda_running_tasks_trigger_needs_a_prometheus_address():
     result = _render(
-        SECRET_ARG,
         "providers.pmp.keda.enabled=true",
         "providers.pmp.keda.runningTasks.enabled=true",
     )
@@ -964,7 +921,6 @@ def test_scaled_object_watches_the_queue_the_worker_actually_consumes(provider):
     # trigger watching a queue nothing publishes to, so the worker would never leave zero.
     slug = __import__(f"climate_ref_{provider}", fromlist=["provider"]).provider.slug
     docs = render(
-        SECRET_ARG,
         f"providers.{provider}.keda.enabled=true",
     )
     triggers = find(docs, "ScaledObject", f"-{provider}")["spec"]["triggers"]
@@ -973,7 +929,6 @@ def test_scaled_object_watches_the_queue_the_worker_actually_consumes(provider):
 
 def test_keda_redis_metadata_carries_broker_options():
     docs = render(
-        SECRET_ARG,
         "providers.pmp.keda.enabled=true",
         "providers.pmp.keda.redisMetadata.enableTLS=true",
     )
@@ -985,7 +940,6 @@ def test_keda_redis_metadata_carries_broker_options():
 def test_keda_redis_metadata_cannot_take_over_a_chart_owned_key():
     # Overriding listName would collapse a multi-queue instance into identical triggers.
     docs = render(
-        SECRET_ARG,
         "providers.esmvaltool.keda.enabled=true",
         "providers.esmvaltool.queues={esmvaltool,esmvaltool-large}",
         "providers.esmvaltool.keda.redisMetadata.listName=override",
@@ -999,7 +953,6 @@ def test_keda_redis_metadata_cannot_take_over_a_chart_owned_key():
 def test_keda_trigger_metadata_values_are_strings():
     # The KEDA scalers parse their metadata as strings and reject a bare int.
     docs = render(
-        SECRET_ARG,
         "providers.pmp.keda.enabled=true",
         "providers.pmp.keda.listLength=3",
     )
@@ -1009,7 +962,6 @@ def test_keda_trigger_metadata_values_are_strings():
 
 def test_keda_advanced_block_passes_through():
     docs = render(
-        SECRET_ARG,
         "providers.pmp.keda.enabled=true",
         "providers.pmp.keda.advanced.restoreToOriginalReplicaCount=true",
     )
@@ -1021,7 +973,6 @@ def test_keda_refuses_to_scale_a_long_diagnostic_to_zero_unguarded():
     # The redis trigger goes inactive when the queue empties, not when the work finishes.
     # esmvaltool runs for up to six hours, so a one minute cooldown discards work in flight.
     result = _render(
-        SECRET_ARG,
         "providers.esmvaltool.keda.enabled=true",
         "providers.esmvaltool.keda.cooldownPeriod=60",
     )
@@ -1040,7 +991,6 @@ def test_keda_refuses_to_scale_a_long_diagnostic_to_zero_unguarded():
 def test_keda_scale_down_guard_accepts_each_documented_remedy(remedy):
     # Each remedy alone must clear the guard, so the base render is one that fails without it.
     docs = render(
-        SECRET_ARG,
         "providers.esmvaltool.keda.enabled=true",
         "providers.esmvaltool.keda.cooldownPeriod=60",
         "providers.esmvaltool.keda.runningTasks.serverAddress=http://prom:9090",
@@ -1052,14 +1002,13 @@ def test_keda_scale_down_guard_accepts_each_documented_remedy(remedy):
 @pytest.mark.parametrize(("provider", "expected"), [("esmvaltool", 21600), ("pmp", 7200)])
 def test_keda_cooldown_defaults_to_the_workers_own_task_limit(provider, expected):
     # The safe cooldown is one the chart can work out, so enabling keda alone must not need it.
-    docs = render(SECRET_ARG, f"providers.{provider}.keda.enabled=true")
+    docs = render(f"providers.{provider}.keda.enabled=true")
     assert find(docs, "ScaledObject", f"-{provider}")["spec"]["cooldownPeriod"] == expected
 
 
 def test_keda_cooldown_stays_short_when_a_trigger_holds_busy_workers_up():
     # runningTasks reports work in flight, so the cooldown no longer has to outlast it.
     docs = render(
-        SECRET_ARG,
         "providers.esmvaltool.keda.enabled=true",
         "providers.esmvaltool.keda.runningTasks.enabled=true",
         "providers.esmvaltool.keda.runningTasks.serverAddress=http://prom:9090",
@@ -1070,7 +1019,6 @@ def test_keda_cooldown_stays_short_when_a_trigger_holds_busy_workers_up():
 def test_keda_cooldown_guard_reads_a_templated_task_limit():
     # env values may be templates, so a guard reading them raw would miss this entirely.
     values = {
-        "api": {"env": {"SECRET_KEY": PLACEHOLDER_SECRET}},
         "taskLimit": "7200",
         "providers": {
             "pmp": {
@@ -1089,7 +1037,7 @@ def _pod_spec(docs: list[dict], component: str, kind: str = "Deployment") -> dic
 
 
 def test_no_priority_class_is_set_by_default():
-    docs = render(SECRET_ARG)
+    docs = render()
     for component in ("api", "orchestrator", "pmp"):
         assert "priorityClassName" not in _pod_spec(docs, component)
     assert "priorityClassName" not in _pod_spec(docs, "migrate", kind="Job")
@@ -1097,7 +1045,6 @@ def test_no_priority_class_is_set_by_default():
 
 def test_api_and_workers_take_separate_priority_classes():
     docs = render(
-        SECRET_ARG,
         "api.priorityClassName=ref-api",
         "defaults.priorityClassName=ref-worker",
     )
@@ -1108,7 +1055,6 @@ def test_api_and_workers_take_separate_priority_classes():
 
 def test_a_worker_priority_class_can_be_overridden_per_instance():
     docs = render(
-        SECRET_ARG,
         "defaults.priorityClassName=ref-worker",
         "providers.pmp.priorityClassName=ref-worker-low",
     )
@@ -1119,13 +1065,12 @@ def test_a_worker_priority_class_can_be_overridden_per_instance():
 def test_the_migrate_job_takes_the_worker_priority_class():
     # The hook must schedule before the release proceeds, so leaving it on the cluster
     # default would let it outrank the workers it migrates for.
-    docs = render(SECRET_ARG, "defaults.priorityClassName=ref-worker")
+    docs = render("defaults.priorityClassName=ref-worker")
     assert _pod_spec(docs, "migrate", kind="Job")["priorityClassName"] == "ref-worker"
 
 
 def test_the_migrate_job_follows_an_orchestrator_priority_class_override():
     docs = render(
-        SECRET_ARG,
         "defaults.priorityClassName=ref-worker",
         "orchestrator.priorityClassName=ref-orchestrator",
     )
