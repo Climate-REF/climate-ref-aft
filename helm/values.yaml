@@ -352,7 +352,7 @@ defaults:
     maxReplicaCount: 4
 
     # The redis trigger only sees what is still queued, not what is running.
-    # Keep this above the longest diagnostic unless `runningTasks` is holding the pods up.
+    # The render fails if this is below CELERY_TASK_TIME_LIMIT and nothing else guards scale-down.
     cooldownPeriod: 1800
     pollingInterval: 15
 

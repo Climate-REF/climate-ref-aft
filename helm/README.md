@@ -708,6 +708,10 @@ providers:
 
 The chart renders one redis trigger per queue the instance consumes,
 so a size-split instance with `queues: [esmvaltool, esmvaltool-large]` wakes for either of them.
+KEDA combines triggers by taking the highest replica count any one of them asks for, not the sum,
+so an instance with two deep queues scales for the deeper queue rather than for both at once.
+That under-provisions rather than over-provisions, and `maxReplicaCount` bounds it either way.
+Set `keda.advanced.scalingModifiers` with your own named `extraTriggers` to sum them instead.
 The trigger points at the bundled Dragonfly by default.
 With `dragonfly.enabled: false` the scaler cannot reuse `externalBroker.url`,
 because it wants the broker as a bare `host:port`, so set `keda.redisAddress`.
@@ -718,6 +722,9 @@ the worker has pulled the last task, so a naive scale-down destroys work in flig
 Two values guard against that, and at least one of them must suit the provider:
 
 - `cooldownPeriod` (default 30 minutes) is how long KEDA waits at zero queue depth before scaling in.
+  The chart refuses to render a worker that scales to zero on a cooldown shorter than its own
+  `CELERY_TASK_TIME_LIMIT`, because that combination discards work in flight.
+  Enable `runningTasks`, raise the cooldown, or lift `minReplicaCount` off zero.
 - `runningTasks` adds a Prometheus trigger on Flower's currently-executing-tasks metric,
   which holds the pods up for as long as they are busy.
 
