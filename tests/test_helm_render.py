@@ -257,15 +257,11 @@ AFT_PROVIDERS = "climate_ref_esmvaltool:provider,climate_ref_ilamb:provider,clim
 
 @pytest.mark.parametrize("component", [*PROVIDERS, "api", "migrate"])
 def test_every_component_names_the_same_diagnostic_providers(component):
-    # Unset, the REF runs every provider installed in the image, including the example one.
-    # Two components disagreeing is worse still: the API lists executions no worker runs.
     env = _provider_env(render(SECRET_ARG), component)
     assert env["REF_DIAGNOSTIC_PROVIDERS"] == AFT_PROVIDERS
 
 
 def test_the_named_providers_are_the_ones_with_workers():
-    # The Fast Track evaluates three providers, so the list and the deployed workers move together.
-    # Read the workers back off the render, so adding one without naming it fails here.
     docs = render(SECRET_ARG)
     deployed = set()
     for doc in docs:

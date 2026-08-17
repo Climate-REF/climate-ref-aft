@@ -80,7 +80,7 @@ jobs:
         run: helm dependency build helm/
 
       - name: Lint chart
-        run: helm lint helm/ --set api.env.SECRET_KEY=lint-not-a-real-secret
+        run: helm lint helm/
 
       - name: Install uv
         uses: astral-sh/setup-uv@v10.0.0
