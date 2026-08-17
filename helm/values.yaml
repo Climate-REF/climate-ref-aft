@@ -367,10 +367,8 @@ defaults:
     # e.g. `enableTLS`, `databaseIndex`, `passwordFromEnv`.
     redisMetadata: {}
 
-    # A second trigger that holds the worker up while it is still executing,
-    # so scale-down does not depend on the cooldown alone.
-    # `query` has no default because Flower labels its metrics by worker, not by provider,
-    # so what it must match depends on how your Prometheus scrapes and relabels them.
+    # A second trigger that holds the worker up while it is still executing.
+    # `query` is required, because the labels it must match depend on how Flower's metrics are scraped.
     runningTasks:
       enabled: false
       serverAddress: ""

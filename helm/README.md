@@ -704,9 +704,6 @@ providers:
     keda:
       enabled: true
       maxReplicaCount: 4
-      runningTasks:
-        enabled: true
-        serverAddress: http://prometheus-prometheus.monitoring.svc:9090
 ```
 
 The chart renders one redis trigger per queue the instance consumes,

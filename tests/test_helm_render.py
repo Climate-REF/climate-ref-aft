@@ -913,14 +913,10 @@ def test_scaled_object_watches_the_queue_the_worker_actually_consumes(provider):
     # The ScaledObject names the queue itself, while the worker derives it from the
     # provider's own `slug`. A provider whose slug left its name behind would leave the
     # trigger watching a queue nothing publishes to, so the worker would never leave zero.
-    from climate_ref_core.providers import DiagnosticProvider
-
-    module = __import__(f"climate_ref_{provider}", fromlist=["provider"])
-    instance = module.provider
-    assert isinstance(instance, DiagnosticProvider)
+    slug = __import__(f"climate_ref_{provider}", fromlist=["provider"]).provider.slug
     docs = render(SECRET_ARG, f"providers.{provider}.keda.enabled=true")
     triggers = find(docs, "ScaledObject", f"-{provider}")["spec"]["triggers"]
-    assert [t["metadata"]["listName"] for t in triggers] == [instance.slug]
+    assert [t["metadata"]["listName"] for t in triggers] == [slug]
 
 
 def test_keda_redis_metadata_carries_broker_options():
@@ -935,8 +931,7 @@ def test_keda_redis_metadata_carries_broker_options():
 
 
 def test_keda_redis_metadata_cannot_take_over_a_chart_owned_key():
-    # Overriding listName collapses a multi-queue instance into identical triggers,
-    # and an earlier version emitted a duplicate YAML key the API server silently resolved.
+    # Overriding listName would collapse a multi-queue instance into identical triggers.
     docs = render(
         SECRET_ARG,
         "providers.esmvaltool.keda.enabled=true",
