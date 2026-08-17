@@ -206,7 +206,8 @@ The diagnostic providers this release deploys, as a `REF_DIAGNOSTIC_PROVIDERS` v
 Without it the REF discovers every provider entry point installed in the image,
 so a provider with no worker still enters the solve and its executions queue forever.
 Each worker contributes `climate_ref_<provider>:provider`, or its own `entryPoint` when set.
-Returns an empty string when `pinDiagnosticProviders` is false, so callers must test it.
+Returns an empty string when pinning is off or the release deploys no diagnostic workers,
+so callers must test it. An empty value would read as discovery to the app anyway.
 */}}
 {{- define "ref.diagnosticProviders" -}}
 {{- if ne (toString .Values.pinDiagnosticProviders) "false" -}}

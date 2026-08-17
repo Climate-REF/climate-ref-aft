@@ -232,7 +232,8 @@ providers:
 ```
 
 An explicit `REF_DIAGNOSTIC_PROVIDERS` in `defaults.env` or an instance's `env` wins over the derived
-list, and `pinDiagnosticProviders: false` removes the variable so the app discovers providers itself.
+list. `pinDiagnosticProviders: false` stops the chart deriving one, and leaves an explicit value in
+place, so a release with neither falls back to the app's own discovery.
 
 ### API Configuration
 

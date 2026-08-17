@@ -287,6 +287,17 @@ def test_opting_out_leaves_the_app_to_discover_providers():
         assert "REF_DIAGNOSTIC_PROVIDERS" not in _provider_env(docs, component)
 
 
+def test_opting_out_keeps_a_hand_written_provider_list():
+    # Opting out stops the chart deriving a list. It does not discard one the operator set.
+    docs = render(
+        SECRET_ARG,
+        "pinDiagnosticProviders=false",
+        "defaults.env.REF_DIAGNOSTIC_PROVIDERS=climate_ref_pmp:provider",
+    )
+    for component in [*PROVIDERS, "migrate"]:
+        assert _provider_env(docs, component)["REF_DIAGNOSTIC_PROVIDERS"] == "climate_ref_pmp:provider"
+
+
 def test_esmvaltool_config_is_rendered_and_mounted():
     docs = render(SECRET_ARG)
     configmap = find(docs, "ConfigMap", "-esmvaltool-config")
