@@ -9,12 +9,11 @@ api:
   image:
     repository: ghcr.io/climate-ref/climate-ref-frontend
     pullPolicy: IfNotPresent
-    tag: v0.4.1
+    tag: v0.4.2
 
   env:
     ENVIRONMENT: production
     LOG_LEVEL: INFO
-    SECRET_KEY: ""                  # REQUIRED: override with a strong, unique value in production
     REF_CONFIGURATION: /ref
     REF_DIAGNOSTIC_PROVIDERS: climate_ref_esmvaltool:provider,climate_ref_ilamb:provider,climate_ref_pmp:provider
 

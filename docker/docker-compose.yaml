@@ -64,7 +64,7 @@ services:
       - ref:/ref
 
   ref-app:
-    image: ghcr.io/climate-ref/climate-ref-frontend:v0.4.1
+    image: ghcr.io/climate-ref/climate-ref-frontend:v0.4.2
     platform: linux/amd64
     restart: always
     depends_on:
@@ -77,7 +77,6 @@ services:
     environment:
       - REF_DATABASE_URL=postgresql://postgres:example@postgres:5432/postgres
       - ENVIRONMENT=local
-      - SECRET_KEY=local-dev-secret
       - REF_CONFIGURATION=/ref
       - REF_DIAGNOSTIC_PROVIDERS=climate_ref_esmvaltool:provider,climate_ref_ilamb:provider,climate_ref_pmp:provider
       - COLUMNS=150

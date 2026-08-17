@@ -7,7 +7,6 @@ api:
     limits:
       memory: 2Gi
   env:
-    SECRET_KEY: ci-test-secret
     # Diagnostic providers (climate_ref_ilamb / esmvaltool) create config
     # dirs under $HOME at import time, which fails with the api's
     # readOnlyRootFilesystem unless HOME points at a writable mount.
