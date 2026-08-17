@@ -2,6 +2,10 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+# Set REF_DIAGNOSTIC_PROVIDERS from the workers below, so the solve only considers
+# providers this release actually runs. False restores the app's own entry point discovery.
+pinDiagnosticProviders: true
+
 api:
   enabled: true
   replicaCount: 1

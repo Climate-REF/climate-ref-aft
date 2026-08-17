@@ -208,6 +208,31 @@ For ephemeral test deployments (no persistence across upgrades), `/ref` can also
 | `imagePullSecrets` | Docker registry secrets    | `[]`    |
 | `nameOverride`     | Override chart name        | `""`    |
 | `fullnameOverride` | Override full release name | `""`    |
+| `pinDiagnosticProviders` | Derive `REF_DIAGNOSTIC_PROVIDERS` from the deployed workers | `true` |
+
+### Diagnostic providers
+
+The REF discovers its diagnostic providers from the entry points installed in the image.
+That set is wider than the workers a release deploys,
+so a provider with no worker still enters the solve and its executions queue forever.
+
+The chart closes that gap by setting `REF_DIAGNOSTIC_PROVIDERS` on every component
+from the workers under `providers`,
+which keeps the orchestrator, the API and the migration Job reading one list.
+Each worker contributes `climate_ref_<provider>:provider`.
+Several instances of one provider collapse to a single entry,
+so a size-based queue does not name its provider twice.
+
+A provider packaged under a different name sets its own entry point:
+
+```yaml
+providers:
+  mydiag:
+    entryPoint: my_package:provider
+```
+
+An explicit `REF_DIAGNOSTIC_PROVIDERS` in `defaults.env` or an instance's `env` wins over the derived
+list, and `pinDiagnosticProviders: false` removes the variable so the app discovers providers itself.
 
 ### API Configuration
 
@@ -540,6 +565,7 @@ Environment variables can be set via `defaults.env` or per-provider:
 | `REF_EXECUTOR`          | Executor class            | `climate_ref_celery.executor.CeleryExecutor` |
 | `REF_CONFIGURATION`     | Path to REF configuration | `/ref`                                       |
 | `REF_SOFTWARE_ROOT`     | Path to conda environments| `/ref/software`                              |
+| `REF_DIAGNOSTIC_PROVIDERS` | Providers the solve considers | Derived from the deployed workers |
 | `HOME`                  | Home directory (writable) | `/tmp`                                       |
 
 ### Celery Reliability Settings
