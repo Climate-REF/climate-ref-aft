@@ -117,11 +117,85 @@ so that override precedence is defined in one place rather than per object.
 {{- end -}}
 
 {{/*
+The Celery queues an instance consumes.
+Takes a dict of `instance` (the deployment identity) and `spec` (already resolved through ref.providerSpec).
+An explicit `queues` wins, matching the `--queues` the Deployment passes to the worker.
+Otherwise the worker consumes the single queue `start-worker` derives from its provider,
+which is the provider name, or `celery` for the orchestrator.
+Returns a YAML list, so callers must pipe it through `fromYamlArray`.
+*/}}
+{{- define "ref.instanceQueues" -}}
+{{- $provider := .spec.provider | default .instance -}}
+{{- if .spec.queues -}}
+{{- toYaml .spec.queues -}}
+{{- else if eq $provider "orchestrator" -}}
+{{- toYaml (list "celery") -}}
+{{- else -}}
+{{- toYaml (list $provider) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Report whether an instance has any autoscaler attached, HPA or KEDA.
+Takes the resolved spec. Returns a non-empty string when one is, so callers must use `include`.
+The Deployment omits `replicas` in that case, because an autoscaler owns the field
+and a chart-set value fights it back to the static count on every upgrade.
+*/}}
+{{- define "ref.autoscalerEnabled" -}}
+{{- if or (.autoscaling | default dict).enabled (.keda | default dict).enabled -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+Broker address for a KEDA redis trigger, as `host:port` without a scheme.
+Takes a dict of `root` and `keda` (the instance's resolved keda block).
+Defaults to the bundled Dragonfly, because that is the broker the workers themselves use.
+An external broker cannot be derived from externalBroker.url,
+because KEDA's scaler wants the host and port alone and takes credentials through its own metadata.
+*/}}
+{{- define "ref.kedaRedisAddress" -}}
+{{- $keda := .keda | default dict -}}
+{{- if $keda.redisAddress -}}
+{{ $keda.redisAddress }}
+{{- else if include "ref.dragonflyEnabled" .root -}}
+{{ include "ref.dragonflyAddress" .root }}
+{{- else -}}
+{{- fail "keda.enabled is set while dragonfly.enabled is false, so keda.redisAddress must give the broker as host:port" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Metadata for one KEDA redis trigger, watching a single queue.
+Takes a dict of `address`, `queue` and `keda` (the instance's resolved keda block).
+Every value is a string, because the KEDA scalers parse their metadata as strings.
+`address`, `listName` and `listLength` are the chart's own, so a redisMetadata override cannot
+collapse a multi-queue instance into several identical triggers.
+Returns a YAML mapping, so callers must pipe it through `fromYaml`.
+*/}}
+{{- define "ref.kedaRedisMetadata" -}}
+{{- $metadata := dict "address" .address "listName" .queue "listLength" (.keda.listLength | toString) -}}
+{{- range $key, $value := omit (.keda.redisMetadata | default dict) "address" "listName" "listLength" -}}
+{{- $_ := set $metadata $key (toString $value) -}}
+{{- end -}}
+{{- toYaml $metadata -}}
+{{- end -}}
+
+{{/*
 Render one provider's Secret.
 Takes a dict of `root`, `provider` and `spec` (already resolved through ref.providerSpec).
 The Deployment hashes this to key its pods to their own environment,
 so a change to one provider does not restart the others.
 */}}
+{{/*
+An instance's environment with its templates rendered, as the container will receive it.
+Takes a dict of `root` and `spec` (already resolved through ref.providerSpec).
+Values may themselves be templates, as the shipped broker URL is,
+so anything reading a value rather than passing it through must resolve it here first.
+Returns a YAML mapping, so callers must pipe it through `fromYaml`.
+*/}}
+{{- define "ref.instanceEnv" -}}
+{{- tpl (toYaml (.spec.env | default dict)) .root -}}
+{{- end -}}
+
 {{- define "ref.providerSecret" -}}
 apiVersion: v1
 kind: Secret
@@ -131,7 +205,7 @@ metadata:
     app.kubernetes.io/component: {{ .provider }}
     {{- include "ref.labels" .root | nindent 4 }}
 stringData:
-  {{- tpl (toYaml .spec.env) .root | nindent 2 }}
+  {{- include "ref.instanceEnv" (dict "root" .root "spec" .spec) | nindent 2 }}
 {{- end -}}
 
 {{/*
@@ -181,10 +255,18 @@ otherwise the operator must point the chart at their own broker via externalBrok
 The URL is escaped for the single-quoted YAML scalar that toYaml emits,
 because tpl injects it after that quoting has already happened.
 */}}
-{{- define "ref.brokerUrl" -}}
+{{/*
+The bundled Dragonfly as `host:port`, so the broker URL and the KEDA trigger cannot drift apart.
+Takes the root context. Only meaningful when ref.dragonflyEnabled is true.
+*/}}
+{{- define "ref.dragonflyAddress" -}}
 {{- $dragonfly := .Values.dragonfly | default dict -}}
+{{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ $dragonfly.service.port }}
+{{- end -}}
+
+{{- define "ref.brokerUrl" -}}
 {{- if include "ref.dragonflyEnabled" . -}}
-redis://{{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ $dragonfly.service.port }}
+redis://{{ include "ref.dragonflyAddress" . }}
 {{- else -}}
 {{- $url := required "dragonfly.enabled is false, so externalBroker.url must be set to your own Celery broker" (.Values.externalBroker | default dict).url -}}
 {{- $url | replace "'" "''" -}}

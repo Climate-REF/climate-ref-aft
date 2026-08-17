@@ -56,7 +56,7 @@ metadata:
     app.kubernetes.io/component: {{ $instance }}
     {{- include "ref.labels" $ | nindent 4 }}
 spec:
-  {{- if not (and $spec.autoscaling $spec.autoscaling.enabled) }}
+  {{- if not (include "ref.autoscalerEnabled" $spec) }}
   replicas: {{ $spec.replicaCount }}
   {{- end }}
   selector:

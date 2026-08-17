@@ -249,6 +249,7 @@ defaults:
     # Accepting pickle lets anything that can write to the broker run code in a worker.
     # CELERY_ACCEPT_CONTENT: "json,ref-json,pickle"
 
+  # Ignored once `autoscaling` or `keda` is enabled, because the autoscaler owns the replica count.
   replicaCount: 1
 
   # Provider this worker runs, passed as `--provider`.
@@ -340,6 +341,47 @@ defaults:
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
+
+  # Scale the worker on broker queue depth through KEDA, down to zero when its queues are empty.
+  # Needs KEDA in the cluster, and cannot be combined with `autoscaling`.
+  keda:
+    enabled: false
+
+    # Zero means the worker only exists while there is something for it to do.
+    minReplicaCount: 0
+    maxReplicaCount: 4
+
+    # Seconds at zero queue depth before scaling in.
+    # Empty tracks this worker's own CELERY_TASK_TIME_LIMIT, because the queue empties
+    # before the diagnostic finishes. Anything shorter needs `runningTasks`.
+    cooldownPeriod: ""
+    pollingInterval: 15
+
+    # Broker for the queue-depth triggers, as `host:port`. Defaults to the bundled Dragonfly.
+    # Required when `dragonfly.enabled` is false, because the scaler cannot use externalBroker.url.
+    redisAddress: ""
+
+    # One pending task is enough to want a worker, and the pod runs one execution at a time.
+    listLength: "1"
+
+    # Merged over every redis trigger, for the scaler options the chart does not name,
+    # e.g. `enableTLS`, `databaseIndex`, `passwordFromEnv`.
+    redisMetadata: {}
+
+    # A second trigger that holds the worker up while it is still executing.
+    # `query` defaults to this instance's own pods, matched on the `worker` label Flower already emits.
+    runningTasks:
+      enabled: false
+      serverAddress: ""
+      query: ""
+      threshold: "1"
+
+    # Raw KEDA `advanced` block. Its `horizontalPodAutoscalerConfig.behavior`
+    # is the only way to tune how sharply the scale-down happens.
+    advanced: {}
+
+    # Raw KEDA triggers appended to the generated ones.
+    extraTriggers: []
 
   # As api.extraEnvFrom, applied to every worker and to the db-migrate hook.
   extraEnvFrom: []

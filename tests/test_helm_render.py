@@ -7,6 +7,7 @@ so that template regressions surface in seconds rather than in a minikube job.
 """
 
 import functools
+import re
 import shutil
 import subprocess
 import tempfile
@@ -799,3 +800,263 @@ def test_orchestrator_and_migrate_job_inherit_the_default_ref_mount(values):
     docs = render(SECRET_ARG, values=values)
     assert "/ref" in _mount_paths(find(docs, "Deployment", "-orchestrator"))
     assert "/ref" in _mount_paths(find(docs, "Job", "-migrate"))
+
+
+def _scaled_components(docs: list[dict]) -> set[str]:
+    """Return the component label of every ScaledObject rendered."""
+    return {
+        d["metadata"]["labels"]["app.kubernetes.io/component"]
+        for d in docs
+        if d.get("kind") == "ScaledObject"
+    }
+
+
+def test_no_scaled_objects_without_keda():
+    assert not _scaled_components(render(SECRET_ARG))
+
+
+def test_keda_scales_a_worker_on_its_own_queue():
+    docs = render(
+        SECRET_ARG,
+        "providers.pmp.keda.enabled=true",
+    )
+    assert _scaled_components(docs) == {"pmp"}
+    spec = find(docs, "ScaledObject", "-pmp")["spec"]
+    assert spec["scaleTargetRef"]["name"] == find(docs, "Deployment", "-pmp")["metadata"]["name"]
+    assert spec["minReplicaCount"] == 0
+    assert [t["metadata"]["listName"] for t in spec["triggers"]] == ["pmp"]
+
+
+def test_keda_worker_leaves_replicas_to_the_autoscaler():
+    # A chart-set replicas fights KEDA back to the static count on every upgrade.
+    docs = render(
+        SECRET_ARG,
+        "providers.pmp.keda.enabled=true",
+    )
+    assert "replicas" not in find(docs, "Deployment", "-pmp")["spec"]
+
+
+def test_keda_watches_every_queue_a_split_instance_consumes():
+    docs = render(
+        SECRET_ARG,
+        "providers.esmvaltool.keda.enabled=true",
+        "providers.esmvaltool.queues={esmvaltool,esmvaltool-large}",
+    )
+    triggers = find(docs, "ScaledObject", "-esmvaltool")["spec"]["triggers"]
+    assert [t["metadata"]["listName"] for t in triggers] == ["esmvaltool", "esmvaltool-large"]
+
+
+def test_keda_scales_the_orchestrator_on_the_default_queue():
+    docs = render(SECRET_ARG, "orchestrator.keda.enabled=true")
+    triggers = find(docs, "ScaledObject", "-orchestrator")["spec"]["triggers"]
+    assert [t["metadata"]["listName"] for t in triggers] == ["celery"]
+
+
+def test_keda_points_at_the_bundled_broker_by_default():
+    docs = render(
+        SECRET_ARG,
+        "providers.pmp.keda.enabled=true",
+    )
+    address = find(docs, "ScaledObject", "-pmp")["spec"]["triggers"][0]["metadata"]["address"]
+    assert address == "test-dragonfly:6379"
+
+
+def test_keda_without_the_bundled_broker_needs_an_explicit_address():
+    result = _render(
+        SECRET_ARG,
+        "dragonfly.enabled=false",
+        "externalBroker.url=redis://elsewhere:6379",
+        "providers.pmp.keda.enabled=true",
+    )
+    assert result.returncode != 0
+    assert "keda.redisAddress" in result.stderr
+
+
+def test_keda_and_hpa_together_fail_with_a_clear_message():
+    result = _render(
+        SECRET_ARG,
+        "providers.pmp.keda.enabled=true",
+        "providers.pmp.autoscaling.enabled=true",
+    )
+    assert result.returncode != 0
+    assert "autoscaling.enabled and keda.enabled both set" in result.stderr
+
+
+def _prometheus_query(docs: list[dict], instance: str) -> str:
+    triggers = find(docs, "ScaledObject", f"-{instance}")["spec"]["triggers"]
+    prometheus = [t for t in triggers if t["type"] == "prometheus"]
+    assert len(prometheus) == 1
+    return prometheus[0]["metadata"]["query"]
+
+
+RUNNING_TASKS_ARGS = (
+    "providers.pmp.keda.enabled=true",
+    "providers.pmp.keda.runningTasks.enabled=true",
+    "providers.pmp.keda.runningTasks.serverAddress=http://prometheus.monitoring.svc:9090",
+)
+
+
+def test_keda_running_tasks_trigger_holds_a_busy_worker_up():
+    docs = render(SECRET_ARG, *RUNNING_TASKS_ARGS)
+    assert "flower_worker_number_of_currently_executing_tasks" in _prometheus_query(docs, "pmp")
+
+
+def test_keda_running_tasks_query_matches_this_instance_only():
+    # Flower labels the metric `celery@<pod>`, so the selector must not let a size-split
+    # instance hold up the plain one, which is what a bare provider prefix would do.
+    docs = render(
+        SECRET_ARG,
+        "providers.esmvaltool.keda.enabled=true",
+        "providers.esmvaltool.keda.runningTasks.enabled=true",
+        "providers.esmvaltool.keda.runningTasks.serverAddress=http://prom:9090",
+    )
+    selector = re.search(r'worker=~"([^"]+)"', _prometheus_query(docs, "esmvaltool")).group(1)
+    # PromQL anchors `=~` at both ends.
+    assert re.fullmatch(selector, "celery@test-climate-ref-aft-esmvaltool-6d4b9c7f8x-2kfjd")
+    assert not re.fullmatch(selector, "celery@test-climate-ref-aft-esmvaltool-large-6d4b9c7f8x-2kfjd")
+
+
+def test_keda_running_tasks_query_is_overridable():
+    docs = render(
+        SECRET_ARG,
+        *RUNNING_TASKS_ARGS,
+        "providers.pmp.keda.runningTasks.query=sum(something_else)",
+    )
+    assert _prometheus_query(docs, "pmp") == "sum(something_else)"
+
+
+def test_keda_running_tasks_trigger_needs_a_prometheus_address():
+    result = _render(
+        SECRET_ARG,
+        "providers.pmp.keda.enabled=true",
+        "providers.pmp.keda.runningTasks.enabled=true",
+    )
+    assert result.returncode != 0
+    assert "keda.runningTasks.serverAddress" in result.stderr
+
+
+@pytest.mark.parametrize("provider", ["esmvaltool", "pmp", "ilamb"])
+def test_scaled_object_watches_the_queue_the_worker_actually_consumes(provider):
+    # The ScaledObject names the queue itself, while the worker derives it from the
+    # provider's own `slug`. A provider whose slug left its name behind would leave the
+    # trigger watching a queue nothing publishes to, so the worker would never leave zero.
+    slug = __import__(f"climate_ref_{provider}", fromlist=["provider"]).provider.slug
+    docs = render(
+        SECRET_ARG,
+        f"providers.{provider}.keda.enabled=true",
+    )
+    triggers = find(docs, "ScaledObject", f"-{provider}")["spec"]["triggers"]
+    assert [t["metadata"]["listName"] for t in triggers] == [slug]
+
+
+def test_keda_redis_metadata_carries_broker_options():
+    docs = render(
+        SECRET_ARG,
+        "providers.pmp.keda.enabled=true",
+        "providers.pmp.keda.redisMetadata.enableTLS=true",
+    )
+    metadata = find(docs, "ScaledObject", "-pmp")["spec"]["triggers"][0]["metadata"]
+    assert metadata["enableTLS"] == "true"
+    assert metadata["listName"] == "pmp"
+
+
+def test_keda_redis_metadata_cannot_take_over_a_chart_owned_key():
+    # Overriding listName would collapse a multi-queue instance into identical triggers.
+    docs = render(
+        SECRET_ARG,
+        "providers.esmvaltool.keda.enabled=true",
+        "providers.esmvaltool.queues={esmvaltool,esmvaltool-large}",
+        "providers.esmvaltool.keda.redisMetadata.listName=override",
+        "providers.esmvaltool.keda.redisMetadata.listLength=5",
+    )
+    triggers = find(docs, "ScaledObject", "-esmvaltool")["spec"]["triggers"]
+    assert [t["metadata"]["listName"] for t in triggers] == ["esmvaltool", "esmvaltool-large"]
+    assert {t["metadata"]["listLength"] for t in triggers} == {"1"}
+
+
+def test_keda_trigger_metadata_values_are_strings():
+    # The KEDA scalers parse their metadata as strings and reject a bare int.
+    docs = render(
+        SECRET_ARG,
+        "providers.pmp.keda.enabled=true",
+        "providers.pmp.keda.listLength=3",
+    )
+    metadata = find(docs, "ScaledObject", "-pmp")["spec"]["triggers"][0]["metadata"]
+    assert all(isinstance(v, str) for v in metadata.values()), metadata
+
+
+def test_keda_advanced_block_passes_through():
+    docs = render(
+        SECRET_ARG,
+        "providers.pmp.keda.enabled=true",
+        "providers.pmp.keda.advanced.restoreToOriginalReplicaCount=true",
+    )
+    advanced = find(docs, "ScaledObject", "-pmp")["spec"]["advanced"]
+    assert advanced == {"restoreToOriginalReplicaCount": True}
+
+
+def test_keda_refuses_to_scale_a_long_diagnostic_to_zero_unguarded():
+    # The redis trigger goes inactive when the queue empties, not when the work finishes.
+    # esmvaltool runs for up to six hours, so a one minute cooldown discards work in flight.
+    result = _render(
+        SECRET_ARG,
+        "providers.esmvaltool.keda.enabled=true",
+        "providers.esmvaltool.keda.cooldownPeriod=60",
+    )
+    assert result.returncode != 0
+    assert "while a diagnostic is still running" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "remedy",
+    [
+        "providers.esmvaltool.keda.cooldownPeriod=21600",
+        "providers.esmvaltool.keda.runningTasks.enabled=true",
+        "providers.esmvaltool.keda.extraTriggers[0].type=cron",
+    ],
+)
+def test_keda_scale_down_guard_accepts_each_documented_remedy(remedy):
+    # Each remedy alone must clear the guard, so the base render is one that fails without it.
+    docs = render(
+        SECRET_ARG,
+        "providers.esmvaltool.keda.enabled=true",
+        "providers.esmvaltool.keda.cooldownPeriod=60",
+        "providers.esmvaltool.keda.runningTasks.serverAddress=http://prom:9090",
+        remedy,
+    )
+    assert find(docs, "ScaledObject", "-esmvaltool")
+
+
+@pytest.mark.parametrize(("provider", "expected"), [("esmvaltool", 21600), ("pmp", 7200)])
+def test_keda_cooldown_defaults_to_the_workers_own_task_limit(provider, expected):
+    # The safe cooldown is one the chart can work out, so enabling keda alone must not need it.
+    docs = render(SECRET_ARG, f"providers.{provider}.keda.enabled=true")
+    assert find(docs, "ScaledObject", f"-{provider}")["spec"]["cooldownPeriod"] == expected
+
+
+def test_keda_cooldown_stays_short_when_a_trigger_holds_busy_workers_up():
+    # runningTasks reports work in flight, so the cooldown no longer has to outlast it.
+    docs = render(
+        SECRET_ARG,
+        "providers.esmvaltool.keda.enabled=true",
+        "providers.esmvaltool.keda.runningTasks.enabled=true",
+        "providers.esmvaltool.keda.runningTasks.serverAddress=http://prom:9090",
+    )
+    assert find(docs, "ScaledObject", "-esmvaltool")["spec"]["cooldownPeriod"] == 1800
+
+
+def test_keda_cooldown_guard_reads_a_templated_task_limit():
+    # env values may be templates, so a guard reading them raw would miss this entirely.
+    values = {
+        "api": {"env": {"SECRET_KEY": PLACEHOLDER_SECRET}},
+        "taskLimit": "7200",
+        "providers": {
+            "pmp": {
+                "env": {"CELERY_TASK_TIME_LIMIT": "{{ .Values.taskLimit }}"},
+                "keda": {"enabled": True, "cooldownPeriod": 60},
+            }
+        },
+    }
+    result = _render(values=values)
+    assert result.returncode != 0
+    assert "CELERY_TASK_TIME_LIMIT of 7200" in result.stderr
