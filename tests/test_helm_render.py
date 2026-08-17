@@ -7,6 +7,7 @@ so that template regressions surface in seconds rather than in a minikube job.
 """
 
 import functools
+import re
 import shutil
 import subprocess
 import tempfile
@@ -868,21 +869,47 @@ def test_keda_and_hpa_together_fail_with_a_clear_message():
     assert "autoscaling.enabled and keda.enabled both set" in result.stderr
 
 
-RUNNING_TASKS_QUERY = "sum(flower_worker_number_of_currently_executing_tasks{provider='pmp'})"
+def _prometheus_query(docs: list[dict], instance: str) -> str:
+    triggers = find(docs, "ScaledObject", f"-{instance}")["spec"]["triggers"]
+    prometheus = [t for t in triggers if t["type"] == "prometheus"]
+    assert len(prometheus) == 1
+    return prometheus[0]["metadata"]["query"]
+
+
+RUNNING_TASKS_ARGS = (
+    "providers.pmp.keda.enabled=true",
+    "providers.pmp.keda.runningTasks.enabled=true",
+    "providers.pmp.keda.runningTasks.serverAddress=http://prometheus.monitoring.svc:9090",
+)
 
 
 def test_keda_running_tasks_trigger_holds_a_busy_worker_up():
+    docs = render(SECRET_ARG, *RUNNING_TASKS_ARGS)
+    assert "flower_worker_number_of_currently_executing_tasks" in _prometheus_query(docs, "pmp")
+
+
+def test_keda_running_tasks_query_matches_this_instance_only():
+    # Flower labels the metric `celery@<pod>`, so the selector must not let a size-split
+    # instance hold up the plain one, which is what a bare provider prefix would do.
     docs = render(
         SECRET_ARG,
-        "providers.pmp.keda.enabled=true",
-        "providers.pmp.keda.runningTasks.enabled=true",
-        "providers.pmp.keda.runningTasks.serverAddress=http://prometheus.monitoring.svc:9090",
-        f"providers.pmp.keda.runningTasks.query={RUNNING_TASKS_QUERY}",
+        "providers.esmvaltool.keda.enabled=true",
+        "providers.esmvaltool.keda.runningTasks.enabled=true",
+        "providers.esmvaltool.keda.runningTasks.serverAddress=http://prom:9090",
     )
-    triggers = find(docs, "ScaledObject", "-pmp")["spec"]["triggers"]
-    prometheus = [t for t in triggers if t["type"] == "prometheus"]
-    assert len(prometheus) == 1
-    assert prometheus[0]["metadata"]["query"] == RUNNING_TASKS_QUERY
+    selector = re.search(r'worker=~"([^"]+)"', _prometheus_query(docs, "esmvaltool")).group(1)
+    # PromQL anchors `=~` at both ends.
+    assert re.fullmatch(selector, "celery@test-climate-ref-aft-esmvaltool-6d4b9c7f8x-2kfjd")
+    assert not re.fullmatch(selector, "celery@test-climate-ref-aft-esmvaltool-large-6d4b9c7f8x-2kfjd")
+
+
+def test_keda_running_tasks_query_is_overridable():
+    docs = render(
+        SECRET_ARG,
+        *RUNNING_TASKS_ARGS,
+        "providers.pmp.keda.runningTasks.query=sum(something_else)",
+    )
+    assert _prometheus_query(docs, "pmp") == "sum(something_else)"
 
 
 def test_keda_running_tasks_trigger_needs_a_prometheus_address():
@@ -893,19 +920,6 @@ def test_keda_running_tasks_trigger_needs_a_prometheus_address():
     )
     assert result.returncode != 0
     assert "keda.runningTasks.serverAddress" in result.stderr
-
-
-def test_keda_running_tasks_trigger_needs_a_query():
-    # Flower labels the metric by worker, not by provider, so the chart cannot guess
-    # the labels a query must match without knowing how Prometheus relabels the scrape.
-    result = _render(
-        SECRET_ARG,
-        "providers.pmp.keda.enabled=true",
-        "providers.pmp.keda.runningTasks.enabled=true",
-        "providers.pmp.keda.runningTasks.serverAddress=http://prometheus.monitoring.svc:9090",
-    )
-    assert result.returncode != 0
-    assert "keda.runningTasks.query" in result.stderr
 
 
 @pytest.mark.parametrize("provider", ["esmvaltool", "pmp", "ilamb"])

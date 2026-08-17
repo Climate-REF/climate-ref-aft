@@ -368,7 +368,7 @@ defaults:
     redisMetadata: {}
 
     # A second trigger that holds the worker up while it is still executing.
-    # `query` is required, because the labels it must match depend on how Flower's metrics are scraped.
+    # `query` defaults to this instance's own pods, matched on the `worker` label Flower already emits.
     runningTasks:
       enabled: false
       serverAddress: ""

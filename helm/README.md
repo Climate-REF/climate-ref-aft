@@ -721,31 +721,21 @@ Two values guard against that, and at least one of them must suit the provider:
 - `runningTasks` adds a Prometheus trigger on Flower's currently-executing-tasks metric,
   which holds the pods up for as long as they are busy.
 
-`runningTasks.query` has no default and must be supplied.
-Flower labels that metric by `worker`, the Celery node name, and not by provider,
-so a query keyed on a `provider` label matches nothing unless your Prometheus creates that label.
-The chart's own ServiceMonitor does no relabeling, so derive it in yours:
-
-```yaml
-metricRelabelings:
-  - sourceLabels: [worker]
-    regex: "celery@climate-ref-([a-z]+)-.*"
-    targetLabel: provider
-    replacement: "$1"
-```
-
-The trigger can then be pointed at it:
+`runningTasks` needs only a Prometheus address:
 
 ```yaml
 runningTasks:
   enabled: true
   serverAddress: http://prometheus-prometheus.monitoring.svc:9090
-  query: sum(flower_worker_number_of_currently_executing_tasks{namespace="climate-ref", provider="pmp"})
 ```
 
-That regex stops at the first hyphen, so a size-split instance such as `esmvaltool-large`
-reports as `esmvaltool` and the two instances hold each other up.
-Match on `worker` directly to keep them apart.
+The query defaults to this instance's own pods, matched on the `worker` label Flower already emits,
+which is `celery@<pod name>`.
+That needs no metric relabeling, and it keeps a size-split instance such as `esmvaltool-large`
+from holding up the plain `esmvaltool` pods.
+Set `runningTasks.query` to override it, for instance to hold a whole provider up as one group.
+The chart's ServiceMonitor is the assumed scrape path, so a query that names other labels
+depends on how your own Prometheus relabels them.
 
 | Parameter                           | Description                                       | Default           |
 | ----------------------------------- | ------------------------------------------------- | ----------------- |
@@ -759,7 +749,7 @@ Match on `worker` directly to keep them apart.
 | `keda.redisMetadata`                | Merged over every redis trigger                   | `{}`              |
 | `keda.runningTasks.enabled`         | Add the busy-worker Prometheus trigger            | `false`           |
 | `keda.runningTasks.serverAddress`   | Prometheus to query                               | `""`              |
-| `keda.runningTasks.query`           | Prometheus query, required, no default            | `""`              |
+| `keda.runningTasks.query`           | Overrides the query matching this instance's pods | `""`              |
 | `keda.runningTasks.threshold`       | Executing tasks per replica                       | `"1"`             |
 | `keda.advanced`                     | Raw KEDA `advanced` block, for HPA behaviour      | `{}`              |
 | `keda.extraTriggers`                | Raw KEDA triggers appended to the generated ones  | `[]`              |

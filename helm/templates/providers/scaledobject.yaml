@@ -15,9 +15,13 @@
 {{- end -}}
 {{- if ($keda.runningTasks | default dict).enabled -}}
 {{- $running := $keda.runningTasks -}}
+{{- /* Matches this instance's pods by Flower's own `worker` label, which is `celery@<pod>`.
+       The trailing hash pair keeps `esmvaltool` from also matching `esmvaltool-large`. */ -}}
+{{- $selector := printf "celery@%s-%s-[a-z0-9]+-[a-z0-9]+" (include "ref.fullname" $) $instance -}}
+{{- $default := printf "sum(flower_worker_number_of_currently_executing_tasks{namespace=\"%s\", worker=~\"%s\"})" $.Release.Namespace $selector -}}
 {{- $metadata := dict
       "serverAddress" (required (printf "providers.%s: keda.runningTasks.enabled needs keda.runningTasks.serverAddress" $instance) $running.serverAddress)
-      "query" (required (printf "providers.%s: keda.runningTasks.enabled needs keda.runningTasks.query, because the labels it must match depend on how Flower's metrics are scraped" $instance) $running.query)
+      "query" ($running.query | default $default)
       "threshold" ($running.threshold | toString) -}}
 {{- $triggers = append $triggers (dict "type" "prometheus" "metadata" $metadata) -}}
 {{- end -}}
