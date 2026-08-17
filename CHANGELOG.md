@@ -7,6 +7,11 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.6.0 (2026-08-17)
+
+No significant changes.
+
+
 ## climate-ref-aft 0.5.5 (2026-08-16)
 
 ### Breaking Changes
