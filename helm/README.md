@@ -692,6 +692,56 @@ providers:
 
 The HPA uses a custom metric (`flower_task_prefetch_time_seconds`) to scale based on queue depth.
 
+### Scale to zero with KEDA
+
+`keda` scales a worker on the depth of the queues it consumes, down to zero when they are empty.
+It needs [KEDA](https://keda.sh) installed in the cluster, and it replaces `autoscaling`
+rather than layering on it, because two autoscalers on one Deployment fight over its replica count.
+
+```yaml
+providers:
+  pmp:
+    keda:
+      enabled: true
+      maxReplicaCount: 4
+      runningTasks:
+        enabled: true
+        serverAddress: http://prometheus-prometheus.monitoring.svc:9090
+```
+
+The chart renders one redis trigger per queue the instance consumes,
+so a size-split instance with `queues: [esmvaltool, esmvaltool-large]` wakes for either of them.
+The trigger points at the bundled Dragonfly by default.
+With `dragonfly.enabled: false` the scaler cannot reuse `externalBroker.url`,
+because it wants the broker as a bare `host:port`, so set `keda.redisAddress`.
+
+Scale-down is the part that needs care.
+The redis trigger only sees what is still queued, and a diagnostic runs for hours after
+the worker has pulled the last task, so a naive scale-down destroys work in flight.
+Two values guard against that, and at least one of them must suit the provider:
+
+- `cooldownPeriod` (default 30 minutes) is how long KEDA waits at zero queue depth before scaling in.
+- `runningTasks` adds a Prometheus trigger on Flower's currently-executing-tasks metric,
+  which holds the pods up for as long as they are busy.
+  Its default query keys on the provider, so two instances of one provider hold each other up.
+  Override `runningTasks.query` to split them.
+
+| Value                          | Description                                            | Default |
+|--------------------------------|--------------------------------------------------------|---------|
+| `keda.enabled`                 | Render a ScaledObject for this instance                | `false` |
+| `keda.minReplicaCount`         | Replicas when the queues are empty                     | `0`     |
+| `keda.maxReplicaCount`         | Ceiling on scale-out                                   | `4`     |
+| `keda.cooldownPeriod`          | Seconds at zero depth before scaling in                | `1800`  |
+| `keda.pollingInterval`         | Seconds between trigger checks                         | `15`    |
+| `keda.idleReplicaCount`        | Hold this many while idle instead of zero              | `null`  |
+| `keda.redisAddress`            | Broker as `host:port`                                  | bundled Dragonfly |
+| `keda.listLength`              | Queued tasks per replica                               | `"1"`   |
+| `keda.redisMetadata`           | Merged into every redis trigger                        | `{}`    |
+| `keda.runningTasks.enabled`    | Add the busy-worker Prometheus trigger                 | `false` |
+| `keda.runningTasks.serverAddress` | Prometheus to query                                 | `""`    |
+| `keda.runningTasks.query`      | Overrides the provider-keyed default query             | `""`    |
+| `keda.extraTriggers`           | Raw KEDA triggers appended to the generated ones       | `[]`    |
+
 ## Security
 
 The chart implements security best practices:

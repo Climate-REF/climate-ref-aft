@@ -117,6 +117,56 @@ so that override precedence is defined in one place rather than per object.
 {{- end -}}
 
 {{/*
+The Celery queues an instance consumes.
+Takes a dict of `instance` (the deployment identity) and `spec` (already resolved through ref.providerSpec).
+An explicit `queues` wins, matching the `--queues` the Deployment passes to the worker.
+Otherwise the worker consumes the single queue `start-worker` derives from its provider,
+which is the provider name, or `celery` for the orchestrator.
+Returns a YAML list, so callers must pipe it through `fromYamlArray`.
+*/}}
+{{- define "ref.instanceQueues" -}}
+{{- $provider := .spec.provider | default .instance -}}
+{{- if .spec.queues -}}
+{{- toYaml .spec.queues -}}
+{{- else if eq $provider "orchestrator" -}}
+{{- toYaml (list "celery") -}}
+{{- else -}}
+{{- toYaml (list $provider) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Report whether an instance has any autoscaler attached, HPA or KEDA.
+Takes the resolved spec. Returns a non-empty string when one is, so callers must use `include`.
+The Deployment omits `replicas` in that case, because an autoscaler owns the field
+and a chart-set value fights it back to the static count on every upgrade.
+*/}}
+{{- define "ref.autoscalerEnabled" -}}
+{{- $autoscaling := .autoscaling | default dict -}}
+{{- $keda := .keda | default dict -}}
+{{- if or $autoscaling.enabled $keda.enabled -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+Broker address for a KEDA redis trigger, as `host:port` without a scheme.
+Takes a dict of `root` and `keda` (the instance's resolved keda block).
+Defaults to the bundled Dragonfly, because that is the broker the workers themselves use.
+An external broker cannot be derived from externalBroker.url,
+because KEDA's scaler wants the host and port alone and takes credentials through its own metadata.
+*/}}
+{{- define "ref.kedaRedisAddress" -}}
+{{- $keda := .keda | default dict -}}
+{{- if $keda.redisAddress -}}
+{{ $keda.redisAddress }}
+{{- else if include "ref.dragonflyEnabled" .root -}}
+{{- $dragonfly := .root.Values.dragonfly | default dict -}}
+{{ include "dragonfly.fullname" .root.Subcharts.dragonfly }}:{{ $dragonfly.service.port }}
+{{- else -}}
+{{- fail "keda.enabled is set while dragonfly.enabled is false, so keda.redisAddress must give the broker as host:port" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Render one provider's Secret.
 Takes a dict of `root`, `provider` and `spec` (already resolved through ref.providerSpec).
 The Deployment hashes this to key its pods to their own environment,

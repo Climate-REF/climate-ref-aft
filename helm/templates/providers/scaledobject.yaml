@@ -1,0 +1,66 @@
+{{- include "ref.validateOrchestrator" . -}}
+{{- range $instance, $spec := (fromYaml (include "ref.workerInstances" .)) -}}
+{{- $spec := include "ref.providerSpec" (dict "root" $ "spec" $spec) | fromYaml -}}
+{{- $keda := $spec.keda | default dict -}}
+{{- if $keda.enabled -}}
+{{- if ($spec.autoscaling | default dict).enabled -}}
+  {{- fail (printf "providers.%s: autoscaling.enabled and keda.enabled both set. Pick one, because two autoscalers on the same Deployment fight over its replica count." $instance) -}}
+{{- end -}}
+{{- $provider := $spec.provider | default $instance -}}
+{{- $queues := fromYamlArray (include "ref.instanceQueues" (dict "instance" $instance "spec" $spec)) -}}
+{{- $address := include "ref.kedaRedisAddress" (dict "root" $ "keda" $keda) -}}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "ref.fullname" $ }}-{{ $instance }}
+  labels:
+    app.kubernetes.io/component: {{ $instance }}
+    {{- include "ref.labels" $ | nindent 4 }}
+  {{- with $keda.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  scaleTargetRef:
+    name: {{ include "ref.fullname" $ }}-{{ $instance }}
+  minReplicaCount: {{ $keda.minReplicaCount }}
+  maxReplicaCount: {{ $keda.maxReplicaCount }}
+  cooldownPeriod: {{ $keda.cooldownPeriod }}
+  pollingInterval: {{ $keda.pollingInterval }}
+  {{- with $keda.idleReplicaCount }}
+  idleReplicaCount: {{ . }}
+  {{- end }}
+  {{- with $keda.fallback }}
+  fallback:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $keda.advanced }}
+  advanced:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  triggers:
+  {{- /* One trigger per queue the worker consumes, so a size-split instance wakes for any of them. */}}
+  {{- range $queue := $queues }}
+  - type: redis
+    metadata:
+      address: {{ $address }}
+      listName: {{ $queue }}
+      listLength: {{ $keda.listLength | quote }}
+      {{- range $key, $value := ($keda.redisMetadata | default dict) }}
+      {{ $key }}: {{ $value | quote }}
+      {{- end }}
+  {{- end }}
+  {{- if ($keda.runningTasks | default dict).enabled }}
+  {{- $running := $keda.runningTasks }}
+  - type: prometheus
+    metadata:
+      serverAddress: {{ required (printf "providers.%s: keda.runningTasks.enabled needs keda.runningTasks.serverAddress" $instance) $running.serverAddress }}
+      query: {{ $running.query | default (printf "sum(flower_worker_number_of_currently_executing_tasks{namespace=\"%s\", provider=\"%s\"})" $.Release.Namespace $provider) | quote }}
+      threshold: {{ $running.threshold | quote }}
+  {{- end }}
+  {{- with $keda.extraTriggers }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}
+---
+{{ end -}}

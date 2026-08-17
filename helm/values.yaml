@@ -341,6 +341,52 @@ defaults:
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
 
+  # Scale the worker on broker queue depth through KEDA, down to zero when its queues are empty.
+  # Requires KEDA in the cluster. Mutually exclusive with `autoscaling`, because two autoscalers
+  # on one Deployment fight over its replica count.
+  keda:
+    enabled: false
+
+    # Zero means the worker only exists while there is something for it to do.
+    minReplicaCount: 0
+    maxReplicaCount: 4
+
+    # A diagnostic runs for hours after the queue empties, and the redis trigger only sees
+    # what is still queued, so a short cooldown scales the pod away mid-execution.
+    # Keep this above the longest diagnostic unless `runningTasks` is holding the pods up.
+    cooldownPeriod: 1800
+    pollingInterval: 15
+
+    # Replicas to hold while the queues are empty, instead of scaling all the way to zero.
+    idleReplicaCount: null
+
+    # Broker for the queue-depth triggers, as `host:port`. Defaults to the bundled Dragonfly.
+    # Required when `dragonfly.enabled` is false, because the scaler cannot use externalBroker.url.
+    redisAddress: ""
+
+    # One pending task is enough to want a worker, and the pod runs one execution at a time.
+    listLength: "1"
+
+    # Merged into every redis trigger, for the scaler options the chart does not name,
+    # e.g. `enableTLS`, `databaseIndex`, `passwordFromEnv`.
+    redisMetadata: {}
+
+    # A second trigger that holds the worker up while it is still executing,
+    # so scale-down does not depend on the cooldown alone.
+    # The default query keys on the provider, so two instances of one provider hold each other up.
+    runningTasks:
+      enabled: false
+      serverAddress: ""
+      query: ""
+      threshold: "1"
+
+    annotations: {}
+    fallback: {}
+    advanced: {}
+
+    # Raw KEDA triggers appended to the generated ones.
+    extraTriggers: []
+
   # As api.extraEnvFrom, applied to every worker and to the db-migrate hook.
   extraEnvFrom: []
 
