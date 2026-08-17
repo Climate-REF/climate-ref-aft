@@ -223,6 +223,7 @@ The `api` section configures the ref-app (FastAPI + React frontend).
 | `api.service.type`     | Service type              | `ClusterIP`                                |
 | `api.service.port`     | Service port              | `80`                                       |
 | `api.resources`        | Resource requests/limits  | 200m CPU / 2Gi, limit 6Gi                  |
+| `api.priorityClassName` | Scheduling priority class | `""`                                      |
 | `api.nodeSelector`     | Node selector             | `{}`                                       |
 | `api.tolerations`      | Tolerations               | `[]`                                       |
 | `api.affinity`         | Affinity rules            | `{}`                                       |
@@ -350,6 +351,7 @@ These defaults apply to all providers unless overridden per-provider.
 | `defaults.image.tag`        | Worker image tag          | `v0.17.2`                         |
 | `defaults.image.pullPolicy` | Image pull policy         | `IfNotPresent`                    |
 | `defaults.resources`        | Resource requests/limits  | 4 CPU / 16Gi, limits 6 CPU / 32Gi |
+| `defaults.priorityClassName` | Scheduling priority class | `""`                             |
 | `defaults.nodeSelector`     | Node selector             | `{}`                              |
 | `defaults.tolerations`      | Tolerations               | `[]`                              |
 | `defaults.affinity`         | Affinity rules            | `{}`                              |

@@ -40,6 +40,9 @@ spec:
       {{- with (include "ref.serviceAccountName" (dict "root" . "component" "api" "serviceAccount" .Values.api.serviceAccount)) }}
       serviceAccountName: {{ . }}
       {{- end }}
+      {{- with .Values.api.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
       {{- with .Values.api.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
