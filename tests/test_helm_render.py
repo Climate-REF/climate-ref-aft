@@ -294,9 +294,7 @@ def test_per_provider_values_override_the_shared_defaults():
 
 
 def test_overriding_one_provider_does_not_affect_the_others():
-    docs = render(
-        "providers.pmp.replicaCount=7",
-    )
+    docs = render("providers.pmp.replicaCount=7")
     assert find(docs, "Deployment", "-ilamb")["spec"]["replicas"] == 1
     assert find(docs, "Deployment", "-orchestrator")["spec"]["replicas"] == 1
 
@@ -751,8 +749,7 @@ def test_http_route_renders_the_configured_filters(component):
         "type": "ExtensionRef",
         "extensionRef": {"group": "traefik.io", "kind": "Middleware", "name": "forwardauth"},
     }
-    values = {}
-    values.setdefault(component, {})["httpRoute"] = {"enabled": True, "filters": [middleware]}
+    values = {component: {"httpRoute": {"enabled": True, "filters": [middleware]}}}
     docs = render(values=values)
     route = find(docs, "HTTPRoute", f"-{component}")
     assert route["spec"]["rules"][0]["filters"] == [middleware]
@@ -760,8 +757,7 @@ def test_http_route_renders_the_configured_filters(component):
 
 @pytest.mark.parametrize("component", ["api", "flower"])
 def test_http_route_omits_filters_when_none_are_set(component):
-    values = {}
-    values.setdefault(component, {})["httpRoute"] = {"enabled": True}
+    values = {component: {"httpRoute": {"enabled": True}}}
     docs = render(values=values)
     assert "filters" not in find(docs, "HTTPRoute", f"-{component}")["spec"]["rules"][0]
 
@@ -804,9 +800,7 @@ def test_no_scaled_objects_without_keda():
 
 
 def test_keda_scales_a_worker_on_its_own_queue():
-    docs = render(
-        "providers.pmp.keda.enabled=true",
-    )
+    docs = render("providers.pmp.keda.enabled=true")
     assert _scaled_components(docs) == {"pmp"}
     spec = find(docs, "ScaledObject", "-pmp")["spec"]
     assert spec["scaleTargetRef"]["name"] == find(docs, "Deployment", "-pmp")["metadata"]["name"]
@@ -816,9 +810,7 @@ def test_keda_scales_a_worker_on_its_own_queue():
 
 def test_keda_worker_leaves_replicas_to_the_autoscaler():
     # A chart-set replicas fights KEDA back to the static count on every upgrade.
-    docs = render(
-        "providers.pmp.keda.enabled=true",
-    )
+    docs = render("providers.pmp.keda.enabled=true")
     assert "replicas" not in find(docs, "Deployment", "-pmp")["spec"]
 
 
@@ -838,9 +830,7 @@ def test_keda_scales_the_orchestrator_on_the_default_queue():
 
 
 def test_keda_points_at_the_bundled_broker_by_default():
-    docs = render(
-        "providers.pmp.keda.enabled=true",
-    )
+    docs = render("providers.pmp.keda.enabled=true")
     address = find(docs, "ScaledObject", "-pmp")["spec"]["triggers"][0]["metadata"]["address"]
     assert address == "test-dragonfly:6379"
 
@@ -920,9 +910,7 @@ def test_scaled_object_watches_the_queue_the_worker_actually_consumes(provider):
     # provider's own `slug`. A provider whose slug left its name behind would leave the
     # trigger watching a queue nothing publishes to, so the worker would never leave zero.
     slug = __import__(f"climate_ref_{provider}", fromlist=["provider"]).provider.slug
-    docs = render(
-        f"providers.{provider}.keda.enabled=true",
-    )
+    docs = render(f"providers.{provider}.keda.enabled=true")
     triggers = find(docs, "ScaledObject", f"-{provider}")["spec"]["triggers"]
     assert [t["metadata"]["listName"] for t in triggers] == [slug]
 
