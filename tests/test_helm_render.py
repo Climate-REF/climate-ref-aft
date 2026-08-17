@@ -890,3 +890,41 @@ def test_keda_running_tasks_trigger_needs_a_prometheus_address():
     )
     assert result.returncode != 0
     assert "keda.runningTasks.serverAddress" in result.stderr
+
+
+def test_keda_redis_metadata_carries_broker_options():
+    docs = render(
+        SECRET_ARG,
+        "providers.pmp.keda.enabled=true",
+        "providers.pmp.keda.redisMetadata.enableTLS=true",
+    )
+    metadata = _scaled_objects(docs)["pmp"]["spec"]["triggers"][0]["metadata"]
+    assert metadata["enableTLS"] == "true"
+    assert metadata["listName"] == "pmp"
+
+
+def test_keda_redis_metadata_overrides_rather_than_duplicating_a_key():
+    # Duplicate YAML keys render without error and the API server silently takes the last.
+    docs = render(
+        SECRET_ARG,
+        "providers.pmp.keda.enabled=true",
+        "providers.pmp.keda.redisMetadata.listLength=5",
+    )
+    assert _scaled_objects(docs)["pmp"]["spec"]["triggers"][0]["metadata"]["listLength"] == "5"
+
+
+def test_keda_trigger_metadata_values_are_strings():
+    # The KEDA scalers parse their metadata as strings and reject a bare int.
+    docs = render(SECRET_ARG, "providers.pmp.keda.enabled=true", "providers.pmp.keda.listLength=3")
+    metadata = _scaled_objects(docs)["pmp"]["spec"]["triggers"][0]["metadata"]
+    assert all(isinstance(v, str) for v in metadata.values()), metadata
+
+
+def test_keda_advanced_block_passes_through():
+    docs = render(
+        SECRET_ARG,
+        "providers.pmp.keda.enabled=true",
+        "providers.pmp.keda.advanced.restoreToOriginalReplicaCount=true",
+    )
+    advanced = _scaled_objects(docs)["pmp"]["spec"]["advanced"]
+    assert advanced == {"restoreToOriginalReplicaCount": True}

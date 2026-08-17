@@ -726,21 +726,24 @@ Two values guard against that, and at least one of them must suit the provider:
   Its default query keys on the provider, so two instances of one provider hold each other up.
   Override `runningTasks.query` to split them.
 
-| Value                          | Description                                            | Default |
-|--------------------------------|--------------------------------------------------------|---------|
-| `keda.enabled`                 | Render a ScaledObject for this instance                | `false` |
-| `keda.minReplicaCount`         | Replicas when the queues are empty                     | `0`     |
-| `keda.maxReplicaCount`         | Ceiling on scale-out                                   | `4`     |
-| `keda.cooldownPeriod`          | Seconds at zero depth before scaling in                | `1800`  |
-| `keda.pollingInterval`         | Seconds between trigger checks                         | `15`    |
-| `keda.idleReplicaCount`        | Hold this many while idle instead of zero              | `null`  |
-| `keda.redisAddress`            | Broker as `host:port`                                  | bundled Dragonfly |
-| `keda.listLength`              | Queued tasks per replica                               | `"1"`   |
-| `keda.redisMetadata`           | Merged into every redis trigger                        | `{}`    |
-| `keda.runningTasks.enabled`    | Add the busy-worker Prometheus trigger                 | `false` |
-| `keda.runningTasks.serverAddress` | Prometheus to query                                 | `""`    |
-| `keda.runningTasks.query`      | Overrides the provider-keyed default query             | `""`    |
-| `keda.extraTriggers`           | Raw KEDA triggers appended to the generated ones       | `[]`    |
+| Parameter                           | Description                                       | Default           |
+| ----------------------------------- | ------------------------------------------------- | ----------------- |
+| `keda.enabled`                      | Render a ScaledObject for this instance           | `false`           |
+| `keda.minReplicaCount`              | Replicas when the queues are empty                | `0`               |
+| `keda.maxReplicaCount`              | Ceiling on scale-out                              | `4`               |
+| `keda.cooldownPeriod`               | Seconds at zero depth before scaling in           | `1800`            |
+| `keda.pollingInterval`              | Seconds between trigger checks                    | `15`              |
+| `keda.redisAddress`                 | Broker as `host:port`                             | bundled Dragonfly |
+| `keda.listLength`                   | Queued tasks per replica                          | `"1"`             |
+| `keda.redisMetadata`                | Merged over every redis trigger                   | `{}`              |
+| `keda.runningTasks.enabled`         | Add the busy-worker Prometheus trigger            | `false`           |
+| `keda.runningTasks.serverAddress`   | Prometheus to query                               | `""`              |
+| `keda.runningTasks.query`           | Overrides the provider-keyed default query        | `""`              |
+| `keda.runningTasks.threshold`       | Executing tasks per replica                       | `"1"`             |
+| `keda.advanced`                     | Raw KEDA `advanced` block, for HPA behaviour      | `{}`              |
+| `keda.extraTriggers`                | Raw KEDA triggers appended to the generated ones  | `[]`              |
+
+`replicaCount` is ignored on an instance with `keda.enabled`, because the autoscaler owns the field.
 
 ## Security
 

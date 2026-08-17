@@ -249,6 +249,7 @@ defaults:
     # Accepting pickle lets anything that can write to the broker run code in a worker.
     # CELERY_ACCEPT_CONTENT: "json,ref-json,pickle"
 
+  # Ignored once `autoscaling` or `keda` is enabled, because the autoscaler owns the replica count.
   replicaCount: 1
 
   # Provider this worker runs, passed as `--provider`.
@@ -357,9 +358,6 @@ defaults:
     cooldownPeriod: 1800
     pollingInterval: 15
 
-    # Replicas to hold while the queues are empty, instead of scaling all the way to zero.
-    idleReplicaCount: null
-
     # Broker for the queue-depth triggers, as `host:port`. Defaults to the bundled Dragonfly.
     # Required when `dragonfly.enabled` is false, because the scaler cannot use externalBroker.url.
     redisAddress: ""
@@ -367,7 +365,7 @@ defaults:
     # One pending task is enough to want a worker, and the pod runs one execution at a time.
     listLength: "1"
 
-    # Merged into every redis trigger, for the scaler options the chart does not name,
+    # Merged over every redis trigger, for the scaler options the chart does not name,
     # e.g. `enableTLS`, `databaseIndex`, `passwordFromEnv`.
     redisMetadata: {}
 
@@ -380,8 +378,8 @@ defaults:
       query: ""
       threshold: "1"
 
-    annotations: {}
-    fallback: {}
+    # Raw KEDA `advanced` block, whose `horizontalPodAutoscalerConfig.behavior`
+    # is the only way to tune how sharply the scale-down happens.
     advanced: {}
 
     # Raw KEDA triggers appended to the generated ones.

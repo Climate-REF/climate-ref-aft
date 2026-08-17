@@ -16,10 +16,6 @@ metadata:
   labels:
     app.kubernetes.io/component: {{ $instance }}
     {{- include "ref.labels" $ | nindent 4 }}
-  {{- with $keda.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
 spec:
   scaleTargetRef:
     name: {{ include "ref.fullname" $ }}-{{ $instance }}
@@ -27,28 +23,20 @@ spec:
   maxReplicaCount: {{ $keda.maxReplicaCount }}
   cooldownPeriod: {{ $keda.cooldownPeriod }}
   pollingInterval: {{ $keda.pollingInterval }}
-  {{- with $keda.idleReplicaCount }}
-  idleReplicaCount: {{ . }}
-  {{- end }}
-  {{- with $keda.fallback }}
-  fallback:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
   {{- with $keda.advanced }}
   advanced:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   triggers:
-  {{- /* One trigger per queue the worker consumes, so a size-split instance wakes for any of them. */}}
   {{- range $queue := $queues }}
+  {{- /* Every scaler value is a string, and redisMetadata overrides rather than duplicating a key. */}}
+  {{- $metadata := dict }}
+  {{- range $key, $value := (mergeOverwrite (dict "address" $address "listName" $queue "listLength" $keda.listLength) ($keda.redisMetadata | default dict)) }}
+  {{- $_ := set $metadata $key (toString $value) }}
+  {{- end }}
   - type: redis
     metadata:
-      address: {{ $address }}
-      listName: {{ $queue }}
-      listLength: {{ $keda.listLength | quote }}
-      {{- range $key, $value := ($keda.redisMetadata | default dict) }}
-      {{ $key }}: {{ $value | quote }}
-      {{- end }}
+      {{- toYaml $metadata | nindent 6 }}
   {{- end }}
   {{- if ($keda.runningTasks | default dict).enabled }}
   {{- $running := $keda.runningTasks }}
