@@ -1,7 +1,10 @@
 # Docker Compose configuration for the Climate REF AFT stack.
 #
-# This brings up the full deployment with all diagnostic providers,
+# This brings up the full deployment with the three Fast Track diagnostic providers,
 # suitable for local testing and smoke tests.
+#
+# REF_DIAGNOSTIC_PROVIDERS is repeated per service rather than written to a ref.toml,
+# because a provider list in that file is read in preference to the environment.
 #
 # Usage:
 #   docker compose -f docker/docker-compose.yaml up -d
@@ -37,7 +40,7 @@ services:
       - "5432:5432"
 
   # One-shot service to initialise the shared /ref volume.
-  # Creates config, subdirectories, and populates providers.
+  # Creates subdirectories and populates providers.
   ref-init:
     image: ghcr.io/climate-ref/climate-ref:v0.17.2
     platform: linux/amd64
@@ -47,16 +50,13 @@ services:
     environment:
       - REF_DATABASE_URL=postgresql://postgres:example@postgres:5432/postgres
       - REF_CONFIGURATION=/ref
+      - REF_DIAGNOSTIC_PROVIDERS=climate_ref_esmvaltool:provider,climate_ref_ilamb:provider,climate_ref_pmp:provider
       - COLUMNS=150
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         # Create required subdirectories
         mkdir -p /ref/log /ref/scratch /ref/results /ref/software
-        if [ ! -f /ref/ref.toml ]; then
-          echo "Initialising /ref/ref.toml..."
-          ref config list > /ref/ref.toml
-        fi
         # Run setup commands to populate the database and providers
         ref providers setup
         echo "ref-init complete"
@@ -79,6 +79,7 @@ services:
       - ENVIRONMENT=local
       - SECRET_KEY=local-dev-secret
       - REF_CONFIGURATION=/ref
+      - REF_DIAGNOSTIC_PROVIDERS=climate_ref_esmvaltool:provider,climate_ref_ilamb:provider,climate_ref_pmp:provider
       - COLUMNS=150
     volumes:
       - ref:/ref
@@ -110,6 +111,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - REF_EXECUTOR=climate_ref_celery.executor.CeleryExecutor
       - REF_DATABASE_URL=postgresql://postgres:example@postgres:5432/postgres
+      - REF_DIAGNOSTIC_PROVIDERS=climate_ref_esmvaltool:provider,climate_ref_ilamb:provider,climate_ref_pmp:provider
       - COLUMNS=150
     command: celery start-worker --loglevel INFO
     volumes:

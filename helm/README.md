@@ -209,6 +209,17 @@ For ephemeral test deployments (no persistence across upgrades), `/ref` can also
 | `nameOverride`     | Override chart name        | `""`    |
 | `fullnameOverride` | Override full release name | `""`    |
 
+### Diagnostic providers
+
+`REF_DIAGNOSTIC_PROVIDERS` names the three providers the Assessment Fast Track evaluates.
+Left unset the REF discovers providers from the entry points installed in the image,
+which is a wider set than the workers this chart deploys,
+so a provider with no worker enters the solve and its executions queue forever.
+
+The value appears twice, in `defaults.env` and in `api.env`,
+and the two must agree or the API lists executions no worker runs.
+Adding or removing a provider means editing the list and the `providers` block together.
+
 ### API Configuration
 
 The `api` section configures the ref-app (FastAPI + React frontend).
@@ -540,6 +551,7 @@ Environment variables can be set via `defaults.env` or per-provider:
 | `REF_EXECUTOR`          | Executor class            | `climate_ref_celery.executor.CeleryExecutor` |
 | `REF_CONFIGURATION`     | Path to REF configuration | `/ref`                                       |
 | `REF_SOFTWARE_ROOT`     | Path to conda environments| `/ref/software`                              |
+| `REF_DIAGNOSTIC_PROVIDERS` | Providers the solve considers | The three Fast Track providers |
 | `HOME`                  | Home directory (writable) | `/tmp`                                       |
 
 ### Celery Reliability Settings

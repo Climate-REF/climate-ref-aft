@@ -252,6 +252,28 @@ def test_every_provider_inherits_the_shared_defaults(provider):
     assert env["REF_EXECUTOR"] == "climate_ref_celery.executor.CeleryExecutor"
 
 
+AFT_PROVIDERS = "climate_ref_esmvaltool:provider,climate_ref_ilamb:provider,climate_ref_pmp:provider"
+
+
+@pytest.mark.parametrize("component", [*PROVIDERS, "api", "migrate"])
+def test_every_component_names_the_same_diagnostic_providers(component):
+    env = _provider_env(render(SECRET_ARG), component)
+    assert env["REF_DIAGNOSTIC_PROVIDERS"] == AFT_PROVIDERS
+
+
+def test_the_named_providers_are_the_ones_with_workers():
+    docs = render(SECRET_ARG)
+    deployed = set()
+    for doc in docs:
+        if doc.get("kind") != "Deployment":
+            continue
+        args = doc["spec"]["template"]["spec"]["containers"][0].get("args") or []
+        if "--provider" in args:
+            deployed.add(args[args.index("--provider") + 1])
+    named = _provider_env(docs, "orchestrator")["REF_DIAGNOSTIC_PROVIDERS"].split(",")
+    assert sorted(named) == sorted(f"climate_ref_{p}:provider" for p in deployed)
+
+
 def test_esmvaltool_config_is_rendered_and_mounted():
     docs = render(SECRET_ARG)
     configmap = find(docs, "ConfigMap", "-esmvaltool-config")

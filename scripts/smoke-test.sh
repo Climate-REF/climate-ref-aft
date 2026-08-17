@@ -4,7 +4,7 @@ set -euo pipefail
 # Smoke test for the Climate REF AFT docker stack.
 #
 # Verifies that all services start, data can be ingested,
-# and the solver can execute diagnostics across all providers.
+# and the solver can execute diagnostics across each of the Fast Track providers.
 #
 # Usage:
 #   bash scripts/smoke-test.sh
