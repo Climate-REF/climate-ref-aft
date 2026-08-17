@@ -343,8 +343,7 @@ defaults:
     # targetMemoryUtilizationPercentage: 80
 
   # Scale the worker on broker queue depth through KEDA, down to zero when its queues are empty.
-  # Requires KEDA in the cluster. Mutually exclusive with `autoscaling`, because two autoscalers
-  # on one Deployment fight over its replica count.
+  # Needs KEDA in the cluster, and cannot be combined with `autoscaling`.
   keda:
     enabled: false
 
@@ -352,8 +351,7 @@ defaults:
     minReplicaCount: 0
     maxReplicaCount: 4
 
-    # A diagnostic runs for hours after the queue empties, and the redis trigger only sees
-    # what is still queued, so a short cooldown scales the pod away mid-execution.
+    # The redis trigger only sees what is still queued, not what is running.
     # Keep this above the longest diagnostic unless `runningTasks` is holding the pods up.
     cooldownPeriod: 1800
     pollingInterval: 15

@@ -11,14 +11,14 @@
 {{- $address := include "ref.kedaRedisAddress" (dict "root" $ "keda" $keda) -}}
 {{- $triggers := list -}}
 {{- range $queue := $queues -}}
-{{- $triggers = append $triggers (fromYaml (include "ref.kedaRedisTrigger" (dict "address" $address "queue" $queue "keda" $keda))) -}}
+{{- $metadata := fromYaml (include "ref.kedaRedisMetadata" (dict "address" $address "queue" $queue "keda" $keda)) -}}
+{{- $triggers = append $triggers (dict "type" "redis" "metadata" $metadata) -}}
 {{- end -}}
 {{- if ($keda.runningTasks | default dict).enabled -}}
 {{- $running := $keda.runningTasks -}}
-{{- $default := printf "sum(flower_worker_number_of_currently_executing_tasks{namespace=\"%s\", provider=\"%s\"})" $.Release.Namespace $provider -}}
 {{- $metadata := dict
       "serverAddress" (required (printf "providers.%s: keda.runningTasks.enabled needs keda.runningTasks.serverAddress" $instance) $running.serverAddress)
-      "query" ($running.query | default $default)
+      "query" ($running.query | default (printf "sum(flower_worker_number_of_currently_executing_tasks{namespace=\"%s\", provider=\"%s\"})" $.Release.Namespace $provider))
       "threshold" ($running.threshold | toString) -}}
 {{- $triggers = append $triggers (dict "type" "prometheus" "metadata" $metadata) -}}
 {{- end -}}

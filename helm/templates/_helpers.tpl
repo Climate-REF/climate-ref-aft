@@ -142,9 +142,7 @@ The Deployment omits `replicas` in that case, because an autoscaler owns the fie
 and a chart-set value fights it back to the static count on every upgrade.
 */}}
 {{- define "ref.autoscalerEnabled" -}}
-{{- $autoscaling := .autoscaling | default dict -}}
-{{- $keda := .keda | default dict -}}
-{{- if or $autoscaling.enabled $keda.enabled -}}true{{- end -}}
+{{- if or (.autoscaling | default dict).enabled (.keda | default dict).enabled -}}true{{- end -}}
 {{- end -}}
 
 {{/*
@@ -159,28 +157,26 @@ because KEDA's scaler wants the host and port alone and takes credentials throug
 {{- if $keda.redisAddress -}}
 {{ $keda.redisAddress }}
 {{- else if include "ref.dragonflyEnabled" .root -}}
-{{- $dragonfly := .root.Values.dragonfly | default dict -}}
-{{ include "dragonfly.fullname" .root.Subcharts.dragonfly }}:{{ $dragonfly.service.port }}
+{{ include "ref.dragonflyAddress" .root }}
 {{- else -}}
 {{- fail "keda.enabled is set while dragonfly.enabled is false, so keda.redisAddress must give the broker as host:port" -}}
 {{- end -}}
 {{- end -}}
 
 {{/*
-One KEDA redis trigger, watching a single queue.
+Metadata for one KEDA redis trigger, watching a single queue.
 Takes a dict of `address`, `queue` and `keda` (the instance's resolved keda block).
-Every value is cast to a string, because the KEDA scalers parse their metadata as strings.
+Every value is a string, because the KEDA scalers parse their metadata as strings.
 `address`, `listName` and `listLength` are the chart's own, so a redisMetadata override cannot
 collapse a multi-queue instance into several identical triggers.
+Returns a YAML mapping, so callers must pipe it through `fromYaml`.
 */}}
-{{- define "ref.kedaRedisTrigger" -}}
+{{- define "ref.kedaRedisMetadata" -}}
 {{- $metadata := dict "address" .address "listName" .queue "listLength" (.keda.listLength | toString) -}}
 {{- range $key, $value := omit (.keda.redisMetadata | default dict) "address" "listName" "listLength" -}}
 {{- $_ := set $metadata $key (toString $value) -}}
 {{- end -}}
-type: redis
-metadata:
-  {{- toYaml $metadata | nindent 2 }}
+{{- toYaml $metadata -}}
 {{- end -}}
 
 {{/*
@@ -248,10 +244,18 @@ otherwise the operator must point the chart at their own broker via externalBrok
 The URL is escaped for the single-quoted YAML scalar that toYaml emits,
 because tpl injects it after that quoting has already happened.
 */}}
-{{- define "ref.brokerUrl" -}}
+{{/*
+The bundled Dragonfly as `host:port`, so the broker URL and the KEDA trigger cannot drift apart.
+Takes the root context. Only meaningful when ref.dragonflyEnabled is true.
+*/}}
+{{- define "ref.dragonflyAddress" -}}
 {{- $dragonfly := .Values.dragonfly | default dict -}}
+{{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ $dragonfly.service.port }}
+{{- end -}}
+
+{{- define "ref.brokerUrl" -}}
 {{- if include "ref.dragonflyEnabled" . -}}
-redis://{{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ $dragonfly.service.port }}
+redis://{{ include "ref.dragonflyAddress" . }}
 {{- else -}}
 {{- $url := required "dragonfly.enabled is false, so externalBroker.url must be set to your own Celery broker" (.Values.externalBroker | default dict).url -}}
 {{- $url | replace "'" "''" -}}

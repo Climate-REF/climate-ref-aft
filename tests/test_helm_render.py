@@ -801,24 +801,23 @@ def test_orchestrator_and_migrate_job_inherit_the_default_ref_mount(values):
     assert "/ref" in _mount_paths(find(docs, "Job", "-migrate"))
 
 
-def _scaled_objects(docs: list[dict]) -> dict[str, dict]:
-    """Map component label to its ScaledObject."""
+def _scaled_components(docs: list[dict]) -> set[str]:
+    """Return the component label of every ScaledObject rendered."""
     return {
-        d["metadata"]["labels"]["app.kubernetes.io/component"]: d
+        d["metadata"]["labels"]["app.kubernetes.io/component"]
         for d in docs
         if d.get("kind") == "ScaledObject"
     }
 
 
 def test_no_scaled_objects_without_keda():
-    assert not _scaled_objects(render(SECRET_ARG))
+    assert not _scaled_components(render(SECRET_ARG))
 
 
 def test_keda_scales_a_worker_on_its_own_queue():
     docs = render(SECRET_ARG, "providers.pmp.keda.enabled=true")
-    scalers = _scaled_objects(docs)
-    assert set(scalers) == {"pmp"}
-    spec = scalers["pmp"]["spec"]
+    assert _scaled_components(docs) == {"pmp"}
+    spec = find(docs, "ScaledObject", "-pmp")["spec"]
     assert spec["scaleTargetRef"]["name"] == find(docs, "Deployment", "-pmp")["metadata"]["name"]
     assert spec["minReplicaCount"] == 0
     assert [t["metadata"]["listName"] for t in spec["triggers"]] == ["pmp"]
@@ -836,19 +835,19 @@ def test_keda_watches_every_queue_a_split_instance_consumes():
         "providers.esmvaltool.keda.enabled=true",
         "providers.esmvaltool.queues={esmvaltool,esmvaltool-large}",
     )
-    triggers = _scaled_objects(docs)["esmvaltool"]["spec"]["triggers"]
+    triggers = find(docs, "ScaledObject", "-esmvaltool")["spec"]["triggers"]
     assert [t["metadata"]["listName"] for t in triggers] == ["esmvaltool", "esmvaltool-large"]
 
 
 def test_keda_scales_the_orchestrator_on_the_default_queue():
     docs = render(SECRET_ARG, "orchestrator.keda.enabled=true")
-    triggers = _scaled_objects(docs)["orchestrator"]["spec"]["triggers"]
+    triggers = find(docs, "ScaledObject", "-orchestrator")["spec"]["triggers"]
     assert [t["metadata"]["listName"] for t in triggers] == ["celery"]
 
 
 def test_keda_points_at_the_bundled_broker_by_default():
     docs = render(SECRET_ARG, "providers.pmp.keda.enabled=true")
-    address = _scaled_objects(docs)["pmp"]["spec"]["triggers"][0]["metadata"]["address"]
+    address = find(docs, "ScaledObject", "-pmp")["spec"]["triggers"][0]["metadata"]["address"]
     assert address == "test-dragonfly:6379"
 
 
@@ -876,7 +875,7 @@ def test_keda_running_tasks_trigger_holds_a_busy_worker_up():
         "providers.pmp.keda.runningTasks.enabled=true",
         "providers.pmp.keda.runningTasks.serverAddress=http://prometheus.monitoring.svc:9090",
     )
-    triggers = _scaled_objects(docs)["pmp"]["spec"]["triggers"]
+    triggers = find(docs, "ScaledObject", "-pmp")["spec"]["triggers"]
     prometheus = [t for t in triggers if t["type"] == "prometheus"]
     assert len(prometheus) == 1
     assert 'provider="pmp"' in prometheus[0]["metadata"]["query"]
@@ -898,7 +897,7 @@ def test_keda_redis_metadata_carries_broker_options():
         "providers.pmp.keda.enabled=true",
         "providers.pmp.keda.redisMetadata.enableTLS=true",
     )
-    metadata = _scaled_objects(docs)["pmp"]["spec"]["triggers"][0]["metadata"]
+    metadata = find(docs, "ScaledObject", "-pmp")["spec"]["triggers"][0]["metadata"]
     assert metadata["enableTLS"] == "true"
     assert metadata["listName"] == "pmp"
 
@@ -913,7 +912,7 @@ def test_keda_redis_metadata_cannot_take_over_a_chart_owned_key():
         "providers.esmvaltool.keda.redisMetadata.listName=override",
         "providers.esmvaltool.keda.redisMetadata.listLength=5",
     )
-    triggers = _scaled_objects(docs)["esmvaltool"]["spec"]["triggers"]
+    triggers = find(docs, "ScaledObject", "-esmvaltool")["spec"]["triggers"]
     assert [t["metadata"]["listName"] for t in triggers] == ["esmvaltool", "esmvaltool-large"]
     assert {t["metadata"]["listLength"] for t in triggers} == {"1"}
 
@@ -921,7 +920,7 @@ def test_keda_redis_metadata_cannot_take_over_a_chart_owned_key():
 def test_keda_trigger_metadata_values_are_strings():
     # The KEDA scalers parse their metadata as strings and reject a bare int.
     docs = render(SECRET_ARG, "providers.pmp.keda.enabled=true", "providers.pmp.keda.listLength=3")
-    metadata = _scaled_objects(docs)["pmp"]["spec"]["triggers"][0]["metadata"]
+    metadata = find(docs, "ScaledObject", "-pmp")["spec"]["triggers"][0]["metadata"]
     assert all(isinstance(v, str) for v in metadata.values()), metadata
 
 
@@ -931,5 +930,5 @@ def test_keda_advanced_block_passes_through():
         "providers.pmp.keda.enabled=true",
         "providers.pmp.keda.advanced.restoreToOriginalReplicaCount=true",
     )
-    advanced = _scaled_objects(docs)["pmp"]["spec"]["advanced"]
+    advanced = find(docs, "ScaledObject", "-pmp")["spec"]["advanced"]
     assert advanced == {"restoreToOriginalReplicaCount": True}
