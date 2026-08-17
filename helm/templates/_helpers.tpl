@@ -185,6 +185,17 @@ Takes a dict of `root`, `provider` and `spec` (already resolved through ref.prov
 The Deployment hashes this to key its pods to their own environment,
 so a change to one provider does not restart the others.
 */}}
+{{/*
+An instance's environment with its templates rendered, as the container will receive it.
+Takes a dict of `root` and `spec` (already resolved through ref.providerSpec).
+Values may themselves be templates, as the shipped broker URL is,
+so anything reading a value rather than passing it through must resolve it here first.
+Returns a YAML mapping, so callers must pipe it through `fromYaml`.
+*/}}
+{{- define "ref.instanceEnv" -}}
+{{- tpl (toYaml (.spec.env | default dict)) .root -}}
+{{- end -}}
+
 {{- define "ref.providerSecret" -}}
 apiVersion: v1
 kind: Secret
@@ -194,7 +205,7 @@ metadata:
     app.kubernetes.io/component: {{ .provider }}
     {{- include "ref.labels" .root | nindent 4 }}
 stringData:
-  {{- tpl (toYaml .spec.env) .root | nindent 2 }}
+  {{- include "ref.instanceEnv" (dict "root" .root "spec" .spec) | nindent 2 }}
 {{- end -}}
 
 {{/*

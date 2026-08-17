@@ -6,11 +6,14 @@
 {{- if ($spec.autoscaling | default dict).enabled -}}
   {{- fail (printf "providers.%s: autoscaling.enabled and keda.enabled both set. Pick one, because two autoscalers on the same Deployment fight over its replica count." $instance) -}}
 {{- end -}}
-{{- /* The redis trigger goes inactive when the queue empties, not when the work finishes,
-       so a cooldown below the task limit scales the pod away mid-diagnostic. */ -}}
-{{- $timeLimit := int (($spec.env | default dict).CELERY_TASK_TIME_LIMIT | default 0) -}}
-{{- if and (eq (int $keda.minReplicaCount) 0) (not ($keda.runningTasks | default dict).enabled) (lt (int $keda.cooldownPeriod) $timeLimit) -}}
-  {{- fail (printf "providers.%s: keda.cooldownPeriod is %v, below the %v of CELERY_TASK_TIME_LIMIT, so KEDA can scale this worker to zero while a diagnostic is still running. Enable keda.runningTasks, raise keda.cooldownPeriod above %v, or set keda.minReplicaCount above zero." $instance $keda.cooldownPeriod $timeLimit $timeLimit) -}}
+{{- /* The redis trigger goes inactive when the queue empties, not when the work finishes.
+       Without a trigger that reports work in flight, only the cooldown protects a running diagnostic. */ -}}
+{{- $env := fromYaml (include "ref.instanceEnv" (dict "root" $ "spec" $spec)) -}}
+{{- $timeLimit := int ($env.CELERY_TASK_TIME_LIMIT | default 0) -}}
+{{- $held := or ($keda.runningTasks | default dict).enabled $keda.extraTriggers -}}
+{{- $cooldown := $keda.cooldownPeriod | default (ternary $timeLimit 1800 (and (not $held) (gt $timeLimit 1800))) -}}
+{{- if and (not $held) (lt (int $cooldown) $timeLimit) -}}
+  {{- fail (printf "providers.%s: keda.cooldownPeriod is %v, below this worker's CELERY_TASK_TIME_LIMIT of %v, so KEDA can scale it in while a diagnostic is still running. Raise keda.cooldownPeriod above that, or enable keda.runningTasks so a busy worker holds itself up." $instance $cooldown $timeLimit) -}}
 {{- end -}}
 {{- $queues := fromYamlArray (include "ref.instanceQueues" (dict "instance" $instance "spec" $spec)) -}}
 {{- $address := include "ref.kedaRedisAddress" (dict "root" $ "keda" $keda) -}}
@@ -46,7 +49,7 @@ spec:
     name: {{ include "ref.fullname" $ }}-{{ $instance }}
   minReplicaCount: {{ $keda.minReplicaCount }}
   maxReplicaCount: {{ $keda.maxReplicaCount }}
-  cooldownPeriod: {{ $keda.cooldownPeriod }}
+  cooldownPeriod: {{ $cooldown }}
   pollingInterval: {{ $keda.pollingInterval }}
   {{- with $keda.advanced }}
   advanced:

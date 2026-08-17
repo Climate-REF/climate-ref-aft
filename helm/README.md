@@ -695,8 +695,7 @@ The HPA uses a custom metric (`flower_task_prefetch_time_seconds`) to scale base
 ### Scale to zero with KEDA
 
 `keda` scales a worker on the depth of the queues it consumes, down to zero when they are empty.
-It needs [KEDA](https://keda.sh) installed in the cluster, and it replaces `autoscaling`
-rather than layering on it, because two autoscalers on one Deployment fight over its replica count.
+It needs [KEDA](https://keda.sh) installed in the cluster, and it replaces `autoscaling` rather than layering on it.
 
 ```yaml
 providers:
@@ -721,12 +720,19 @@ The redis trigger only sees what is still queued, and a diagnostic runs for hour
 the worker has pulled the last task, so a naive scale-down destroys work in flight.
 Two values guard against that, and at least one of them must suit the provider:
 
-- `cooldownPeriod` (default 30 minutes) is how long KEDA waits at zero queue depth before scaling in.
-  The chart refuses to render a worker that scales to zero on a cooldown shorter than its own
-  `CELERY_TASK_TIME_LIMIT`, because that combination discards work in flight.
-  Enable `runningTasks`, raise the cooldown, or lift `minReplicaCount` off zero.
+- `cooldownPeriod` is how long KEDA waits at zero queue depth before scaling in.
+  Left empty it tracks the worker's own `CELERY_TASK_TIME_LIMIT`, so the default is safe
+  without anyone having to work out the number.
 - `runningTasks` adds a Prometheus trigger on Flower's currently-executing-tasks metric,
   which holds the pods up for as long as they are busy.
+  With it the cooldown no longer has to outlast a diagnostic, so it falls back to 30 minutes.
+
+Setting `cooldownPeriod` below the task limit fails the render, unless `runningTasks` or an
+`extraTriggers` entry is reporting work in flight.
+The check only sees a limit written literally under `env`, so a limit arriving through
+`extraEnvFrom` leaves the chart no way to tell, and the cooldown is then yours to get right.
+Note that raising `minReplicaCount` is not a way out.
+It bounds how far KEDA scales in, not whether it scales in, so pods can still be destroyed mid-diagnostic.
 
 `runningTasks` needs only a Prometheus address:
 
@@ -744,17 +750,17 @@ Set `runningTasks.query` to override it, for instance to hold a whole provider u
 The chart's ServiceMonitor is the assumed scrape path, so a query that names other labels
 depends on how your own Prometheus relabels them.
 
-Flower keeps reporting a worker's last value after the pod is gone, unless it runs with
-`--purge-offline-workers`, and the selector matches dead pod names too.
+Flower keeps reporting a worker's last value after the pod is gone,
+unless it runs with `--purge-offline-workers`, and the selector matches dead pod names too.
 A worker killed mid-diagnostic therefore pins one replica the instance never sheds.
-The error is in the safe direction, but set that flag on Flower if it bites.
+The error is in the safe direction, but set that flag on Flower if it becomes an issue.
 
 | Parameter                           | Description                                       | Default           |
 | ----------------------------------- | ------------------------------------------------- | ----------------- |
 | `keda.enabled`                      | Render a ScaledObject for this instance           | `false`           |
 | `keda.minReplicaCount`              | Replicas when the queues are empty                | `0`               |
 | `keda.maxReplicaCount`              | Ceiling on scale-out                              | `4`               |
-| `keda.cooldownPeriod`               | Seconds at zero depth before scaling in           | `1800`            |
+| `keda.cooldownPeriod`               | Seconds at zero depth before scaling in           | task limit        |
 | `keda.pollingInterval`              | Seconds between trigger checks                    | `15`              |
 | `keda.redisAddress`                 | Broker as `host:port`                             | bundled Dragonfly |
 | `keda.listLength`                   | Queued tasks per replica                          | `"1"`             |
@@ -768,8 +774,6 @@ The error is in the safe direction, but set that flag on Flower if it bites.
 
 `replicaCount` is ignored on an instance with `keda.enabled`, because the autoscaler owns the field.
 `redisMetadata` carries the scaler options the chart does not name, such as `enableTLS` or `passwordFromEnv`.
-It cannot set `address`, `listName` or `listLength`, which the chart owns,
-because overriding `listName` would collapse a multi-queue instance into several identical triggers.
 
 ## Security
 

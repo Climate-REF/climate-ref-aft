@@ -819,7 +819,6 @@ def test_keda_scales_a_worker_on_its_own_queue():
     docs = render(
         SECRET_ARG,
         "providers.pmp.keda.enabled=true",
-        "providers.pmp.keda.cooldownPeriod=21600",
     )
     assert _scaled_components(docs) == {"pmp"}
     spec = find(docs, "ScaledObject", "-pmp")["spec"]
@@ -833,7 +832,6 @@ def test_keda_worker_leaves_replicas_to_the_autoscaler():
     docs = render(
         SECRET_ARG,
         "providers.pmp.keda.enabled=true",
-        "providers.pmp.keda.cooldownPeriod=21600",
     )
     assert "replicas" not in find(docs, "Deployment", "-pmp")["spec"]
 
@@ -842,7 +840,6 @@ def test_keda_watches_every_queue_a_split_instance_consumes():
     docs = render(
         SECRET_ARG,
         "providers.esmvaltool.keda.enabled=true",
-        "providers.esmvaltool.keda.cooldownPeriod=21600",
         "providers.esmvaltool.queues={esmvaltool,esmvaltool-large}",
     )
     triggers = find(docs, "ScaledObject", "-esmvaltool")["spec"]["triggers"]
@@ -859,7 +856,6 @@ def test_keda_points_at_the_bundled_broker_by_default():
     docs = render(
         SECRET_ARG,
         "providers.pmp.keda.enabled=true",
-        "providers.pmp.keda.cooldownPeriod=21600",
     )
     address = find(docs, "ScaledObject", "-pmp")["spec"]["triggers"][0]["metadata"]["address"]
     assert address == "test-dragonfly:6379"
@@ -871,7 +867,6 @@ def test_keda_without_the_bundled_broker_needs_an_explicit_address():
         "dragonfly.enabled=false",
         "externalBroker.url=redis://elsewhere:6379",
         "providers.pmp.keda.enabled=true",
-        "providers.pmp.keda.cooldownPeriod=21600",
     )
     assert result.returncode != 0
     assert "keda.redisAddress" in result.stderr
@@ -881,7 +876,6 @@ def test_keda_and_hpa_together_fail_with_a_clear_message():
     result = _render(
         SECRET_ARG,
         "providers.pmp.keda.enabled=true",
-        "providers.pmp.keda.cooldownPeriod=21600",
         "providers.pmp.autoscaling.enabled=true",
     )
     assert result.returncode != 0
@@ -897,7 +891,6 @@ def _prometheus_query(docs: list[dict], instance: str) -> str:
 
 RUNNING_TASKS_ARGS = (
     "providers.pmp.keda.enabled=true",
-    "providers.pmp.keda.cooldownPeriod=21600",
     "providers.pmp.keda.runningTasks.enabled=true",
     "providers.pmp.keda.runningTasks.serverAddress=http://prometheus.monitoring.svc:9090",
 )
@@ -914,7 +907,6 @@ def test_keda_running_tasks_query_matches_this_instance_only():
     docs = render(
         SECRET_ARG,
         "providers.esmvaltool.keda.enabled=true",
-        "providers.esmvaltool.keda.cooldownPeriod=21600",
         "providers.esmvaltool.keda.runningTasks.enabled=true",
         "providers.esmvaltool.keda.runningTasks.serverAddress=http://prom:9090",
     )
@@ -937,7 +929,6 @@ def test_keda_running_tasks_trigger_needs_a_prometheus_address():
     result = _render(
         SECRET_ARG,
         "providers.pmp.keda.enabled=true",
-        "providers.pmp.keda.cooldownPeriod=21600",
         "providers.pmp.keda.runningTasks.enabled=true",
     )
     assert result.returncode != 0
@@ -953,8 +944,6 @@ def test_scaled_object_watches_the_queue_the_worker_actually_consumes(provider):
     docs = render(
         SECRET_ARG,
         f"providers.{provider}.keda.enabled=true",
-        f"providers.{provider}.keda.cooldownPeriod=21600",
-        f"providers.{provider}.keda.cooldownPeriod=21600",
     )
     triggers = find(docs, "ScaledObject", f"-{provider}")["spec"]["triggers"]
     assert [t["metadata"]["listName"] for t in triggers] == [slug]
@@ -964,7 +953,6 @@ def test_keda_redis_metadata_carries_broker_options():
     docs = render(
         SECRET_ARG,
         "providers.pmp.keda.enabled=true",
-        "providers.pmp.keda.cooldownPeriod=21600",
         "providers.pmp.keda.redisMetadata.enableTLS=true",
     )
     metadata = find(docs, "ScaledObject", "-pmp")["spec"]["triggers"][0]["metadata"]
@@ -977,7 +965,6 @@ def test_keda_redis_metadata_cannot_take_over_a_chart_owned_key():
     docs = render(
         SECRET_ARG,
         "providers.esmvaltool.keda.enabled=true",
-        "providers.esmvaltool.keda.cooldownPeriod=21600",
         "providers.esmvaltool.queues={esmvaltool,esmvaltool-large}",
         "providers.esmvaltool.keda.redisMetadata.listName=override",
         "providers.esmvaltool.keda.redisMetadata.listLength=5",
@@ -992,7 +979,6 @@ def test_keda_trigger_metadata_values_are_strings():
     docs = render(
         SECRET_ARG,
         "providers.pmp.keda.enabled=true",
-        "providers.pmp.keda.cooldownPeriod=21600",
         "providers.pmp.keda.listLength=3",
     )
     metadata = find(docs, "ScaledObject", "-pmp")["spec"]["triggers"][0]["metadata"]
@@ -1003,7 +989,6 @@ def test_keda_advanced_block_passes_through():
     docs = render(
         SECRET_ARG,
         "providers.pmp.keda.enabled=true",
-        "providers.pmp.keda.cooldownPeriod=21600",
         "providers.pmp.keda.advanced.restoreToOriginalReplicaCount=true",
     )
     advanced = find(docs, "ScaledObject", "-pmp")["spec"]["advanced"]
@@ -1012,32 +997,66 @@ def test_keda_advanced_block_passes_through():
 
 def test_keda_refuses_to_scale_a_long_diagnostic_to_zero_unguarded():
     # The redis trigger goes inactive when the queue empties, not when the work finishes.
-    # esmvaltool runs for up to six hours against a thirty minute default cooldown.
-    result = _render(SECRET_ARG, "providers.esmvaltool.keda.enabled=true")
+    # esmvaltool runs for up to six hours, so a one minute cooldown discards work in flight.
+    result = _render(
+        SECRET_ARG,
+        "providers.esmvaltool.keda.enabled=true",
+        "providers.esmvaltool.keda.cooldownPeriod=60",
+    )
     assert result.returncode != 0
     assert "while a diagnostic is still running" in result.stderr
 
 
 @pytest.mark.parametrize(
-    "escape",
+    "remedy",
     [
-        "providers.esmvaltool.keda.runningTasks.enabled=true",
         "providers.esmvaltool.keda.cooldownPeriod=21600",
-        "providers.esmvaltool.keda.minReplicaCount=1",
+        "providers.esmvaltool.keda.runningTasks.enabled=true",
+        "providers.esmvaltool.keda.extraTriggers[0].type=cron",
     ],
 )
-def test_keda_scale_down_guard_accepts_each_documented_remedy(escape):
+def test_keda_scale_down_guard_accepts_each_documented_remedy(remedy):
+    # Each remedy alone must clear the guard, so the base render is one that fails without it.
     docs = render(
         SECRET_ARG,
         "providers.esmvaltool.keda.enabled=true",
-        "providers.esmvaltool.keda.cooldownPeriod=21600",
+        "providers.esmvaltool.keda.cooldownPeriod=60",
         "providers.esmvaltool.keda.runningTasks.serverAddress=http://prom:9090",
-        escape,
+        remedy,
     )
     assert find(docs, "ScaledObject", "-esmvaltool")
 
 
-def test_keda_scale_down_guard_allows_a_cooldown_above_the_task_limit():
-    # ilamb caps at thirty minutes, which the default cooldown already covers.
-    docs = render(SECRET_ARG, "providers.ilamb.keda.enabled=true")
-    assert find(docs, "ScaledObject", "-ilamb")["spec"]["cooldownPeriod"] == 1800
+@pytest.mark.parametrize(("provider", "expected"), [("esmvaltool", 21600), ("pmp", 7200)])
+def test_keda_cooldown_defaults_to_the_workers_own_task_limit(provider, expected):
+    # The safe cooldown is one the chart can work out, so enabling keda alone must not need it.
+    docs = render(SECRET_ARG, f"providers.{provider}.keda.enabled=true")
+    assert find(docs, "ScaledObject", f"-{provider}")["spec"]["cooldownPeriod"] == expected
+
+
+def test_keda_cooldown_stays_short_when_a_trigger_holds_busy_workers_up():
+    # runningTasks reports work in flight, so the cooldown no longer has to outlast it.
+    docs = render(
+        SECRET_ARG,
+        "providers.esmvaltool.keda.enabled=true",
+        "providers.esmvaltool.keda.runningTasks.enabled=true",
+        "providers.esmvaltool.keda.runningTasks.serverAddress=http://prom:9090",
+    )
+    assert find(docs, "ScaledObject", "-esmvaltool")["spec"]["cooldownPeriod"] == 1800
+
+
+def test_keda_cooldown_guard_reads_a_templated_task_limit():
+    # env values may be templates, so a guard reading them raw would miss this entirely.
+    values = {
+        "api": {"env": {"SECRET_KEY": PLACEHOLDER_SECRET}},
+        "taskLimit": "7200",
+        "providers": {
+            "pmp": {
+                "env": {"CELERY_TASK_TIME_LIMIT": "{{ .Values.taskLimit }}"},
+                "keda": {"enabled": True, "cooldownPeriod": 60},
+            }
+        },
+    }
+    result = _render(values=values)
+    assert result.returncode != 0
+    assert "CELERY_TASK_TIME_LIMIT of 7200" in result.stderr
