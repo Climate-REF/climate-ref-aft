@@ -213,20 +213,20 @@ For ephemeral test deployments (no persistence across upgrades), `/ref` can also
 
 The `api` section configures the ref-app (FastAPI + React frontend).
 
-| Parameter              | Description               | Default                                    |
-| ---------------------- | ------------------------- | ------------------------------------------ |
-| `api.enabled`          | Enable the API deployment | `true`                                     |
-| `api.replicaCount`     | Number of API replicas    | `1`                                        |
-| `api.image.repository` | API image repository      | `ghcr.io/climate-ref/climate-ref-frontend` |
-| `api.image.tag`        | API image tag             | `v0.4.1`                                   |
-| `api.image.pullPolicy` | Image pull policy         | `IfNotPresent`                             |
-| `api.service.type`     | Service type              | `ClusterIP`                                |
-| `api.service.port`     | Service port              | `80`                                       |
-| `api.resources`        | Resource requests/limits  | 200m CPU / 2Gi, limit 6Gi                  |
-| `api.priorityClassName` | Scheduling priority class | `""`                                      |
-| `api.nodeSelector`     | Node selector             | `{}`                                       |
-| `api.tolerations`      | Tolerations               | `[]`                                       |
-| `api.affinity`         | Affinity rules            | `{}`                                       |
+| Parameter               | Description               | Default                                    |
+| ----------------------- | ------------------------- | ------------------------------------------ |
+| `api.enabled`           | Enable the API deployment | `true`                                     |
+| `api.replicaCount`      | Number of API replicas    | `1`                                        |
+| `api.image.repository`  | API image repository      | `ghcr.io/climate-ref/climate-ref-frontend` |
+| `api.image.tag`         | API image tag             | `v0.4.1`                                   |
+| `api.image.pullPolicy`  | Image pull policy         | `IfNotPresent`                             |
+| `api.service.type`      | Service type              | `ClusterIP`                                |
+| `api.service.port`      | Service port              | `80`                                       |
+| `api.resources`         | Resource requests/limits  | 200m CPU / 2Gi, limit 6Gi                  |
+| `api.priorityClassName` | Scheduling priority class | `""`                                       |
+| `api.nodeSelector`      | Node selector             | `{}`                                       |
+| `api.tolerations`       | Tolerations               | `[]`                                       |
+| `api.affinity`          | Affinity rules            | `{}`                                       |
 
 #### API Environment Variables
 
@@ -343,20 +343,20 @@ The task list is unaffected either way, because it is built from worker events, 
 
 These defaults apply to all providers unless overridden per-provider.
 
-| Parameter                   | Description               | Default                           |
-| --------------------------- | ------------------------- | --------------------------------- |
-| `defaults.replicaCount`     | Number of worker replicas | `1`                               |
-| `defaults.concurrency`      | Celery child processes per pod | `1`                          |
-| `defaults.image.repository` | Worker image repository   | `ghcr.io/climate-ref/climate-ref` |
-| `defaults.image.tag`        | Worker image tag          | `v0.17.2`                         |
-| `defaults.image.pullPolicy` | Image pull policy         | `IfNotPresent`                    |
-| `defaults.resources`        | Resource requests/limits  | 4 CPU / 16Gi, limits 6 CPU / 32Gi |
-| `defaults.priorityClassName` | Scheduling priority class | `""`                             |
-| `defaults.nodeSelector`     | Node selector             | `{}`                              |
-| `defaults.tolerations`      | Tolerations               | `[]`                              |
-| `defaults.affinity`         | Affinity rules            | `{}`                              |
-| `defaults.volumes`          | Additional volumes        | `[]`                              |
-| `defaults.volumeMounts`     | Additional volume mounts  | `[]`                              |
+| Parameter                    | Description                    | Default                           |
+| ---------------------------- | ------------------------------ | --------------------------------- |
+| `defaults.replicaCount`      | Number of worker replicas      | `1`                               |
+| `defaults.concurrency`       | Celery child processes per pod | `1`                               |
+| `defaults.image.repository`  | Worker image repository        | `ghcr.io/climate-ref/climate-ref` |
+| `defaults.image.tag`         | Worker image tag               | `v0.17.2`                         |
+| `defaults.image.pullPolicy`  | Image pull policy              | `IfNotPresent`                    |
+| `defaults.resources`         | Resource requests/limits       | 4 CPU / 16Gi, limits 6 CPU / 32Gi |
+| `defaults.priorityClassName` | Scheduling priority class      | `""`                              |
+| `defaults.nodeSelector`      | Node selector                  | `{}`                              |
+| `defaults.tolerations`       | Tolerations                    | `[]`                              |
+| `defaults.affinity`          | Affinity rules                 | `{}`                              |
+| `defaults.volumes`           | Additional volumes             | `[]`                              |
+| `defaults.volumeMounts`      | Additional volume mounts       | `[]`                              |
 
 ### Sizing
 

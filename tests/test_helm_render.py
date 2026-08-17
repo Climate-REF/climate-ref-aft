@@ -1062,14 +1062,15 @@ def test_keda_cooldown_guard_reads_a_templated_task_limit():
     assert "CELERY_TASK_TIME_LIMIT of 7200" in result.stderr
 
 
-def _pod_spec(docs: list[dict], name: str) -> dict:
-    return find(docs, "Deployment", name)["spec"]["template"]["spec"]
+def _pod_spec(docs: list[dict], component: str, kind: str = "Deployment") -> dict:
+    return find(docs, kind, f"-{component}")["spec"]["template"]["spec"]
 
 
 def test_no_priority_class_is_set_by_default():
     docs = render(SECRET_ARG)
-    for name in ("-api", "-orchestrator", "-pmp"):
-        assert "priorityClassName" not in _pod_spec(docs, name)
+    for component in ("api", "orchestrator", "pmp"):
+        assert "priorityClassName" not in _pod_spec(docs, component)
+    assert "priorityClassName" not in _pod_spec(docs, "migrate", kind="Job")
 
 
 def test_api_and_workers_take_separate_priority_classes():
@@ -1078,9 +1079,9 @@ def test_api_and_workers_take_separate_priority_classes():
         "api.priorityClassName=ref-api",
         "defaults.priorityClassName=ref-worker",
     )
-    assert _pod_spec(docs, "-api")["priorityClassName"] == "ref-api"
-    assert _pod_spec(docs, "-orchestrator")["priorityClassName"] == "ref-worker"
-    assert _pod_spec(docs, "-pmp")["priorityClassName"] == "ref-worker"
+    assert _pod_spec(docs, "api")["priorityClassName"] == "ref-api"
+    assert _pod_spec(docs, "orchestrator")["priorityClassName"] == "ref-worker"
+    assert _pod_spec(docs, "pmp")["priorityClassName"] == "ref-worker"
 
 
 def test_a_worker_priority_class_can_be_overridden_per_instance():
@@ -1089,5 +1090,12 @@ def test_a_worker_priority_class_can_be_overridden_per_instance():
         "defaults.priorityClassName=ref-worker",
         "providers.pmp.priorityClassName=ref-worker-low",
     )
-    assert _pod_spec(docs, "-pmp")["priorityClassName"] == "ref-worker-low"
-    assert _pod_spec(docs, "-ilamb")["priorityClassName"] == "ref-worker"
+    assert _pod_spec(docs, "pmp")["priorityClassName"] == "ref-worker-low"
+    assert _pod_spec(docs, "ilamb")["priorityClassName"] == "ref-worker"
+
+
+def test_the_migrate_job_follows_the_orchestrator_priority_class():
+    # The hook must schedule before the release proceeds, so leaving it on the cluster
+    # default would let it outrank the workers it migrates for.
+    docs = render(SECRET_ARG, "orchestrator.priorityClassName=ref-orchestrator")
+    assert _pod_spec(docs, "migrate", kind="Job")["priorityClassName"] == "ref-orchestrator"
