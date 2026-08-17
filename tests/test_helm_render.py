@@ -264,10 +264,17 @@ def test_every_component_names_the_same_diagnostic_providers(component):
 
 
 def test_the_named_providers_are_the_ones_with_workers():
-    # The Fast Track evaluates these three, so the list and the deployed workers move together.
+    # The Fast Track evaluates three providers, so the list and the deployed workers move together.
+    # Read the workers back off the render, so adding one without naming it fails here.
     docs = render(SECRET_ARG)
+    deployed = set()
+    for doc in docs:
+        if doc.get("kind") != "Deployment":
+            continue
+        args = doc["spec"]["template"]["spec"]["containers"][0].get("args") or []
+        if "--provider" in args:
+            deployed.add(args[args.index("--provider") + 1])
     named = _provider_env(docs, "orchestrator")["REF_DIAGNOSTIC_PROVIDERS"].split(",")
-    deployed = [p for p in PROVIDERS if p != "orchestrator"]
     assert sorted(named) == sorted(f"climate_ref_{p}:provider" for p in deployed)
 
 
