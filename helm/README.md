@@ -228,6 +228,9 @@ The `api` section configures the ref-app (FastAPI + React frontend).
 | `api.tolerations`       | Tolerations               | `[]`                                       |
 | `api.affinity`          | Affinity rules            | `{}`                                       |
 
+`priorityClassName` names a cluster-scoped `PriorityClass` the chart does not create.
+Naming one that does not exist leaves the pods unschedulable.
+
 #### API Environment Variables
 
 Set via `api.env`:
@@ -342,6 +345,8 @@ The task list is unaffected either way, because it is built from worker events, 
 ### Provider Defaults
 
 These defaults apply to all providers unless overridden per-provider.
+`priorityClassName` covers the orchestrator and the db-migrate hook as well,
+and carries the same `PriorityClass` prerequisite as the API.
 
 | Parameter                    | Description                    | Default                           |
 | ---------------------------- | ------------------------------ | --------------------------------- |

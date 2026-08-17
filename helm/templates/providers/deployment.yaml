@@ -90,7 +90,7 @@ spec:
       serviceAccountName: {{ . }}
       {{- end }}
       {{- with $spec.priorityClassName }}
-      priorityClassName: {{ . }}
+      priorityClassName: {{ . | quote }}
       {{- end }}
       {{- with $spec.podSecurityContext }}
       securityContext:

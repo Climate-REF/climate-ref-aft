@@ -41,7 +41,7 @@ spec:
       serviceAccountName: {{ . }}
       {{- end }}
       {{- with .Values.api.priorityClassName }}
-      priorityClassName: {{ . }}
+      priorityClassName: {{ . | quote }}
       {{- end }}
       {{- with .Values.api.podSecurityContext }}
       securityContext:

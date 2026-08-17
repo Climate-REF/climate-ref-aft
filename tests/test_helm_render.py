@@ -1094,8 +1094,17 @@ def test_a_worker_priority_class_can_be_overridden_per_instance():
     assert _pod_spec(docs, "ilamb")["priorityClassName"] == "ref-worker"
 
 
-def test_the_migrate_job_follows_the_orchestrator_priority_class():
+def test_the_migrate_job_takes_the_worker_priority_class():
     # The hook must schedule before the release proceeds, so leaving it on the cluster
     # default would let it outrank the workers it migrates for.
-    docs = render(SECRET_ARG, "orchestrator.priorityClassName=ref-orchestrator")
+    docs = render(SECRET_ARG, "defaults.priorityClassName=ref-worker")
+    assert _pod_spec(docs, "migrate", kind="Job")["priorityClassName"] == "ref-worker"
+
+
+def test_the_migrate_job_follows_an_orchestrator_priority_class_override():
+    docs = render(
+        SECRET_ARG,
+        "defaults.priorityClassName=ref-worker",
+        "orchestrator.priorityClassName=ref-orchestrator",
+    )
     assert _pod_spec(docs, "migrate", kind="Job")["priorityClassName"] == "ref-orchestrator"
