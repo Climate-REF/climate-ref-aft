@@ -89,6 +89,9 @@ spec:
       {{- with (include "ref.serviceAccountName" (dict "root" $ "component" $instance "serviceAccount" $spec.serviceAccount)) }}
       serviceAccountName: {{ . }}
       {{- end }}
+      {{- with $spec.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with $spec.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}

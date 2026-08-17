@@ -32,6 +32,9 @@ spec:
       labels:
         {{- include "ref.selectorLabels" . | nindent 8 }}
     spec:
+      {{- with $migrate.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with .Values.defaults.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}

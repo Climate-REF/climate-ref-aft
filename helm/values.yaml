@@ -75,6 +75,10 @@ api:
   # reaches the container.
   extraEnvFrom: []
 
+  # Scheduling priority for the API pods.
+  # Set this above the workers' class, so a full cluster evicts a diagnostic worker rather than the API.
+  priorityClassName: ""
+
   volumes: []
   volumeMounts: []
   nodeSelector: {}
@@ -382,6 +386,10 @@ defaults:
 
     # Raw KEDA triggers appended to the generated ones.
     extraTriggers: []
+
+  # Scheduling priority for the worker pods and the db-migrate hook, overridable per instance.
+  # A preempted execution is retried, so workers usually sit below the API.
+  priorityClassName: ""
 
   # As api.extraEnvFrom, applied to every worker and to the db-migrate hook.
   extraEnvFrom: []
