@@ -167,6 +167,23 @@ because KEDA's scaler wants the host and port alone and takes credentials throug
 {{- end -}}
 
 {{/*
+One KEDA redis trigger, watching a single queue.
+Takes a dict of `address`, `queue` and `keda` (the instance's resolved keda block).
+Every value is cast to a string, because the KEDA scalers parse their metadata as strings.
+`address`, `listName` and `listLength` are the chart's own, so a redisMetadata override cannot
+collapse a multi-queue instance into several identical triggers.
+*/}}
+{{- define "ref.kedaRedisTrigger" -}}
+{{- $metadata := dict "address" .address "listName" .queue "listLength" (.keda.listLength | toString) -}}
+{{- range $key, $value := omit (.keda.redisMetadata | default dict) "address" "listName" "listLength" -}}
+{{- $_ := set $metadata $key (toString $value) -}}
+{{- end -}}
+type: redis
+metadata:
+  {{- toYaml $metadata | nindent 2 }}
+{{- end -}}
+
+{{/*
 Render one provider's Secret.
 Takes a dict of `root`, `provider` and `spec` (already resolved through ref.providerSpec).
 The Deployment hashes this to key its pods to their own environment,

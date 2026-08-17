@@ -903,14 +903,19 @@ def test_keda_redis_metadata_carries_broker_options():
     assert metadata["listName"] == "pmp"
 
 
-def test_keda_redis_metadata_overrides_rather_than_duplicating_a_key():
-    # Duplicate YAML keys render without error and the API server silently takes the last.
+def test_keda_redis_metadata_cannot_take_over_a_chart_owned_key():
+    # Overriding listName collapses a multi-queue instance into identical triggers,
+    # and an earlier version emitted a duplicate YAML key the API server silently resolved.
     docs = render(
         SECRET_ARG,
-        "providers.pmp.keda.enabled=true",
-        "providers.pmp.keda.redisMetadata.listLength=5",
+        "providers.esmvaltool.keda.enabled=true",
+        "providers.esmvaltool.queues={esmvaltool,esmvaltool-large}",
+        "providers.esmvaltool.keda.redisMetadata.listName=override",
+        "providers.esmvaltool.keda.redisMetadata.listLength=5",
     )
-    assert _scaled_objects(docs)["pmp"]["spec"]["triggers"][0]["metadata"]["listLength"] == "5"
+    triggers = _scaled_objects(docs)["esmvaltool"]["spec"]["triggers"]
+    assert [t["metadata"]["listName"] for t in triggers] == ["esmvaltool", "esmvaltool-large"]
+    assert {t["metadata"]["listLength"] for t in triggers} == {"1"}
 
 
 def test_keda_trigger_metadata_values_are_strings():

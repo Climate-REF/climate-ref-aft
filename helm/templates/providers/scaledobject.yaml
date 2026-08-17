@@ -9,6 +9,22 @@
 {{- $provider := $spec.provider | default $instance -}}
 {{- $queues := fromYamlArray (include "ref.instanceQueues" (dict "instance" $instance "spec" $spec)) -}}
 {{- $address := include "ref.kedaRedisAddress" (dict "root" $ "keda" $keda) -}}
+{{- $triggers := list -}}
+{{- range $queue := $queues -}}
+{{- $triggers = append $triggers (fromYaml (include "ref.kedaRedisTrigger" (dict "address" $address "queue" $queue "keda" $keda))) -}}
+{{- end -}}
+{{- if ($keda.runningTasks | default dict).enabled -}}
+{{- $running := $keda.runningTasks -}}
+{{- $default := printf "sum(flower_worker_number_of_currently_executing_tasks{namespace=\"%s\", provider=\"%s\"})" $.Release.Namespace $provider -}}
+{{- $metadata := dict
+      "serverAddress" (required (printf "providers.%s: keda.runningTasks.enabled needs keda.runningTasks.serverAddress" $instance) $running.serverAddress)
+      "query" ($running.query | default $default)
+      "threshold" ($running.threshold | toString) -}}
+{{- $triggers = append $triggers (dict "type" "prometheus" "metadata" $metadata) -}}
+{{- end -}}
+{{- with $keda.extraTriggers -}}
+{{- $triggers = concat $triggers . -}}
+{{- end -}}
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
@@ -28,27 +44,7 @@ spec:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   triggers:
-  {{- range $queue := $queues }}
-  {{- /* Every scaler value is a string, and redisMetadata overrides rather than duplicating a key. */}}
-  {{- $metadata := dict }}
-  {{- range $key, $value := (mergeOverwrite (dict "address" $address "listName" $queue "listLength" $keda.listLength) ($keda.redisMetadata | default dict)) }}
-  {{- $_ := set $metadata $key (toString $value) }}
-  {{- end }}
-  - type: redis
-    metadata:
-      {{- toYaml $metadata | nindent 6 }}
-  {{- end }}
-  {{- if ($keda.runningTasks | default dict).enabled }}
-  {{- $running := $keda.runningTasks }}
-  - type: prometheus
-    metadata:
-      serverAddress: {{ required (printf "providers.%s: keda.runningTasks.enabled needs keda.runningTasks.serverAddress" $instance) $running.serverAddress }}
-      query: {{ $running.query | default (printf "sum(flower_worker_number_of_currently_executing_tasks{namespace=\"%s\", provider=\"%s\"})" $.Release.Namespace $provider) | quote }}
-      threshold: {{ $running.threshold | quote }}
-  {{- end }}
-  {{- with $keda.extraTriggers }}
-  {{- toYaml . | nindent 2 }}
-  {{- end }}
-{{- end }}
+  {{- toYaml $triggers | nindent 2 }}
 ---
-{{ end -}}
+{{ end }}
+{{- end -}}

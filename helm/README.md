@@ -744,6 +744,9 @@ Two values guard against that, and at least one of them must suit the provider:
 | `keda.extraTriggers`                | Raw KEDA triggers appended to the generated ones  | `[]`              |
 
 `replicaCount` is ignored on an instance with `keda.enabled`, because the autoscaler owns the field.
+`redisMetadata` carries the scaler options the chart does not name, such as `enableTLS` or `passwordFromEnv`.
+It cannot set `address`, `listName` or `listLength`, which the chart owns,
+because overriding `listName` would collapse a multi-queue instance into several identical triggers.
 
 ## Security
 
