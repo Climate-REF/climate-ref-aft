@@ -694,8 +694,12 @@ The HPA uses a custom metric (`flower_task_prefetch_time_seconds`) to scale base
 
 ### Scale to zero with KEDA
 
-`keda` scales a worker on the depth of the queues it consumes, down to zero when they are empty.
-It needs [KEDA](https://keda.sh) installed in the cluster, and it replaces `autoscaling` rather than layering on it.
+KEDA watches the broker directly.
+The chart renders one redis trigger per queue the instance consumes,
+each polling that queue's length, and KEDA scales the Deployment on what it finds.
+An empty queue means no worker, so the instance costs nothing while idle.
+
+Needs [KEDA](https://keda.sh) in the cluster. Replaces `autoscaling` rather than layering on it.
 
 ```yaml
 providers:
@@ -705,34 +709,31 @@ providers:
       maxReplicaCount: 4
 ```
 
-The chart renders one redis trigger per queue the instance consumes,
-so a size-split instance with `queues: [esmvaltool, esmvaltool-large]` wakes for either of them.
-KEDA combines triggers by taking the highest replica count any one of them asks for, not the sum,
-so an instance with two deep queues scales for the deeper queue rather than for both at once.
-That under-provisions rather than over-provisions, and `maxReplicaCount` bounds it either way.
-Set `keda.advanced.scalingModifiers` with your own named `extraTriggers` to sum them instead.
-The trigger points at the bundled Dragonfly by default.
-With `dragonfly.enabled: false` the scaler cannot reuse `externalBroker.url`,
-because it wants the broker as a bare `host:port`, so set `keda.redisAddress`.
+The triggers point at the bundled Dragonfly.
+With `dragonfly.enabled: false` set `keda.redisAddress`, because the scaler wants a bare `host:port`
+and cannot reuse `externalBroker.url`.
 
-Scale-down is the part that needs care.
-The redis trigger only sees what is still queued, and a diagnostic runs for hours after
-the worker has pulled the last task, so a naive scale-down destroys work in flight.
-Two values guard against that, and at least one of them must suit the provider:
+A size-split instance with `queues: [esmvaltool, esmvaltool-large]` gets a trigger for each.
+KEDA takes the highest count any one trigger asks for rather than the sum,
+so two deep queues scale for the deeper one.
+That under-provisions rather than over-provisions, and `maxReplicaCount` bounds it anyway.
 
-- `cooldownPeriod` is how long KEDA waits at zero queue depth before scaling in.
-  Left empty it tracks the worker's own `CELERY_TASK_TIME_LIMIT`, so the default is safe
-  without anyone having to work out the number.
+#### Scale-down
+
+The redis trigger goes quiet when the queue empties, not when the work finishes,
+so a diagnostic can still be running with nothing left to see.
+Either of two values covers that gap:
+
+- `cooldownPeriod` waits at zero depth before scaling in.
+  Left empty it tracks the worker's own `CELERY_TASK_TIME_LIMIT`, so the default is already safe.
 - `runningTasks` adds a Prometheus trigger on Flower's currently-executing-tasks metric,
-  which holds the pods up for as long as they are busy.
-  With it the cooldown no longer has to outlast a diagnostic, so it falls back to 30 minutes.
+  which holds a busy pod up directly. The cooldown then falls back to 30 minutes.
 
 Setting `cooldownPeriod` below the task limit fails the render, unless `runningTasks` or an
-`extraTriggers` entry is reporting work in flight.
-The check only sees a limit written literally under `env`, so a limit arriving through
-`extraEnvFrom` leaves the chart no way to tell, and the cooldown is then yours to get right.
-Note that raising `minReplicaCount` is not a way out.
-It bounds how far KEDA scales in, not whether it scales in, so pods can still be destroyed mid-diagnostic.
+`extraTriggers` entry reports work in flight.
+The check only sees a limit written literally under `env`, so one arriving through `extraEnvFrom`
+leaves the cooldown yours to get right.
+Raising `minReplicaCount` is not a way out, because it bounds how far KEDA scales in, not whether it does.
 
 `runningTasks` needs only a Prometheus address:
 
@@ -742,18 +743,12 @@ runningTasks:
   serverAddress: http://prometheus-prometheus.monitoring.svc:9090
 ```
 
-The query defaults to this instance's own pods, matched on the `worker` label Flower already emits,
-which is `celery@<pod name>`.
-That needs no metric relabeling, and it keeps a size-split instance such as `esmvaltool-large`
-from holding up the plain `esmvaltool` pods.
-Set `runningTasks.query` to override it, for instance to hold a whole provider up as one group.
-The chart's ServiceMonitor is the assumed scrape path, so a query that names other labels
-depends on how your own Prometheus relabels them.
+The query defaults to this instance's own pods, matched on the `worker` label Flower already emits.
+That needs no metric relabeling, and it keeps `esmvaltool-large` from holding up the plain
+`esmvaltool` pods. Override it with `runningTasks.query`.
 
-Flower keeps reporting a worker's last value after the pod is gone,
-unless it runs with `--purge-offline-workers`, and the selector matches dead pod names too.
-A worker killed mid-diagnostic therefore pins one replica the instance never sheds.
-The error is in the safe direction, but set that flag on Flower if it becomes an issue.
+One caveat: Flower keeps reporting a dead worker's last value unless it runs with
+`--purge-offline-workers`, so a worker killed mid-diagnostic pins a replica the instance never sheds.
 
 | Parameter                           | Description                                       | Default           |
 | ----------------------------------- | ------------------------------------------------- | ----------------- |

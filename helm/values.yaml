@@ -351,10 +351,9 @@ defaults:
     minReplicaCount: 0
     maxReplicaCount: 4
 
-    # Seconds at zero queue depth before KEDA scales in.
-    # Empty tracks this worker's own CELERY_TASK_TIME_LIMIT, because the redis trigger goes
-    # inactive when the queue empties rather than when the diagnostic finishes.
-    # Anything shorter needs `runningTasks` or an `extraTriggers` entry to hold a busy worker up.
+    # Seconds at zero queue depth before scaling in.
+    # Empty tracks this worker's own CELERY_TASK_TIME_LIMIT, because the queue empties
+    # before the diagnostic finishes. Anything shorter needs `runningTasks`.
     cooldownPeriod: ""
     pollingInterval: 15
 
@@ -377,7 +376,8 @@ defaults:
       query: ""
       threshold: "1"
 
-    # Raw KEDA `advanced` block, whose `horizontalPodAutoscalerConfig.behavior` is the only way to tune how sharply the scale-down happens.
+    # Raw KEDA `advanced` block. Its `horizontalPodAutoscalerConfig.behavior`
+    # is the only way to tune how sharply the scale-down happens.
     advanced: {}
 
     # Raw KEDA triggers appended to the generated ones.
