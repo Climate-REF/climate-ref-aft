@@ -7,6 +7,16 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.6.3 (2026-08-27)
+
+### Bug Fixes
+
+- Fully qualifies the broker address the KEDA redis triggers dial.
+  The chart gave them the same in-namespace name the workers use,
+  but the scaler runs in the KEDA operator's namespace,
+  so every ScaledObject sat at `READY=False` on `no such host` and no worker ever scaled. ([#54](https://github.com/Climate-REF/climate-ref-aft/pulls/54))
+
+
 ## climate-ref-aft 0.6.2 (2026-08-17)
 
 ### Improvements
