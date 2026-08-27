@@ -29,7 +29,7 @@ services:
       - "6379:6379"
 
   postgres:
-    image: postgres:17
+    image: postgres:18
     restart: always
     environment:
       POSTGRES_USER: postgres
