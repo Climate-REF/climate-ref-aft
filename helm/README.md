@@ -727,8 +727,9 @@ providers:
       maxReplicaCount: 4
 ```
 
-The triggers point at the bundled Dragonfly.
-With `dragonfly.enabled: false` set `keda.redisAddress`,
+The triggers point at the bundled Dragonfly by its fully qualified name,
+because the scaler dials from the KEDA operator's namespace rather than the release's.
+With `dragonfly.enabled: false` set `keda.redisAddress` to an address resolvable from there,
 because the scaler wants a bare `host:port` and cannot reuse `externalBroker.url`.
 
 A size-split instance with `queues: [esmvaltool, esmvaltool-large]` gets a trigger for each.
