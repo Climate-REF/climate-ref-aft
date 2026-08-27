@@ -364,7 +364,8 @@ defaults:
     cooldownPeriod: ""
     pollingInterval: 15
 
-    # Broker for the queue-depth triggers, as `host:port`. Defaults to the bundled Dragonfly.
+    # Broker for the queue-depth triggers, as `host:port`.
+    # Defaults to the bundled Dragonfly, fully qualified because the scaler dials from KEDA's namespace.
     # Required when `dragonfly.enabled` is false, because the scaler cannot use externalBroker.url.
     redisAddress: ""
 

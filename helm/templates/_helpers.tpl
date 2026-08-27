@@ -134,6 +134,8 @@ and a chart-set value fights it back to the static count on every upgrade.
 Broker address for a KEDA redis trigger, as `host:port` without a scheme.
 Takes a dict of `root` and `keda` (the instance's resolved keda block).
 Defaults to the bundled Dragonfly, because that is the broker the workers themselves use.
+The scaler dials from wherever the KEDA operator runs, not from the release namespace,
+so this one is fully qualified where the workers' own address is not.
 An external broker cannot be derived from externalBroker.url,
 because KEDA's scaler wants the host and port alone and takes credentials through its own metadata.
 */}}
@@ -142,7 +144,7 @@ because KEDA's scaler wants the host and port alone and takes credentials throug
 {{- if $keda.redisAddress -}}
 {{ $keda.redisAddress }}
 {{- else if include "ref.dragonflyEnabled" .root -}}
-{{ include "ref.dragonflyAddress" .root }}
+{{ include "dragonfly.fullname" .root.Subcharts.dragonfly }}.{{ .root.Release.Namespace }}.svc.cluster.local:{{ (.root.Values.dragonfly | default dict).service.port }}
 {{- else -}}
 {{- fail "keda.enabled is set while dragonfly.enabled is false, so keda.redisAddress must give the broker as host:port" -}}
 {{- end -}}

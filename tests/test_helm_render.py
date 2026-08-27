@@ -830,9 +830,10 @@ def test_keda_scales_the_orchestrator_on_the_default_queue():
 
 
 def test_keda_points_at_the_bundled_broker_by_default():
+    """The scaler dials from the KEDA namespace, so its address has to be fully qualified."""
     docs = render("providers.pmp.keda.enabled=true")
     address = find(docs, "ScaledObject", "-pmp")["spec"]["triggers"][0]["metadata"]["address"]
-    assert address == "test-dragonfly:6379"
+    assert address == "test-dragonfly.default.svc.cluster.local:6379"
 
 
 def test_keda_without_the_bundled_broker_needs_an_explicit_address():
