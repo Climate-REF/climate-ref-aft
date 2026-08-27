@@ -133,11 +133,8 @@ and a chart-set value fights it back to the static count on every upgrade.
 {{/*
 Broker address for a KEDA redis trigger, as `host:port` without a scheme.
 Takes a dict of `root` and `keda` (the instance's resolved keda block).
-Defaults to the bundled Dragonfly, because that is the broker the workers themselves use.
-The scaler dials from wherever the KEDA operator runs, not from the release namespace,
-so this one is fully qualified where the workers' own address is not.
-An external broker cannot be derived from externalBroker.url,
-because KEDA's scaler wants the host and port alone and takes credentials through its own metadata.
+Fully qualified, because the scaler dials from the KEDA operator's namespace, not the release's.
+externalBroker.url cannot stand in, because the scaler wants the host and port alone.
 */}}
 {{- define "ref.kedaRedisAddress" -}}
 {{- $keda := .keda | default dict -}}
