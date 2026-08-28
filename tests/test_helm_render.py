@@ -1064,3 +1064,48 @@ def test_the_migrate_job_follows_an_orchestrator_priority_class_override():
         "orchestrator.priorityClassName=ref-orchestrator",
     )
     assert _pod_spec(docs, "migrate", kind="Job")["priorityClassName"] == "ref-orchestrator"
+
+
+def _pod_labels(docs: list[dict], component: str, kind: str = "Deployment") -> dict:
+    return find(docs, kind, f"-{component}")["spec"]["template"]["metadata"]["labels"]
+
+
+POD_TEMPLATES = [
+    ("api", "Deployment"),
+    ("flower", "Deployment"),
+    ("orchestrator", "Deployment"),
+    ("pmp", "Deployment"),
+    ("migrate", "Job"),
+]
+
+
+@pytest.mark.parametrize("component,kind", POD_TEMPLATES)
+def test_chart_wide_pod_labels_reach_every_pod(component, kind):
+    docs = render("flower.enabled=true", "podLabels.environment=production")
+    assert _pod_labels(docs, component, kind=kind)["environment"] == "production"
+
+
+@pytest.mark.parametrize("component,kind", POD_TEMPLATES)
+def test_no_chart_wide_pod_labels_by_default(component, kind):
+    docs = render("flower.enabled=true")
+    assert "environment" not in _pod_labels(docs, component, kind=kind)
+
+
+def test_chart_wide_pod_labels_stay_off_the_selectors():
+    # A Deployment's selector is immutable
+    # A label that reached it would make the next upgrade of an existing release fail.
+    docs = render("podLabels.environment=production")
+    for component in ("api", "orchestrator", "pmp"):
+        selector = find(docs, "Deployment", f"-{component}")["spec"]["selector"]["matchLabels"]
+        assert "environment" not in selector
+
+
+def test_a_component_overrides_a_chart_wide_pod_label():
+    docs = render(
+        "podLabels.environment=production",
+        "api.podLabels.environment=staging",
+        "providers.pmp.podLabels.environment=staging",
+    )
+    assert _pod_labels(docs, "api")["environment"] == "staging"
+    assert _pod_labels(docs, "pmp")["environment"] == "staging"
+    assert _pod_labels(docs, "orchestrator")["environment"] == "production"

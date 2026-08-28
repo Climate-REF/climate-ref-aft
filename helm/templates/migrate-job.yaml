@@ -31,6 +31,9 @@ spec:
     metadata:
       labels:
         {{- include "ref.selectorLabels" . | nindent 8 }}
+        {{- with (include "ref.podLabels" .) }}
+        {{- . | nindent 8 }}
+        {{- end }}
     spec:
       {{- with $migrate.priorityClassName }}
       priorityClassName: {{ . | quote }}

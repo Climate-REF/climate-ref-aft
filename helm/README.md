@@ -208,6 +208,10 @@ For ephemeral test deployments (no persistence across upgrades), `/ref` can also
 | `imagePullSecrets` | Docker registry secrets    | `[]`    |
 | `nameOverride`     | Override chart name        | `""`    |
 | `fullnameOverride` | Override full release name | `""`    |
+| `podLabels`        | Labels added to every pod  | `{}`    |
+
+`podLabels` covers every pod the chart renders.
+A component's own `podLabels` is applied on top of it so they take precendence.
 
 ### Diagnostic providers
 

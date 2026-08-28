@@ -2,6 +2,9 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+# Labels added to every pod the chart renders, on top of each component's own podLabels.
+podLabels: {}
+
 api:
   enabled: true
   replicaCount: 1

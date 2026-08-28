@@ -43,6 +43,16 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
+Labels added to every pod the chart renders, from the chart-wide `podLabels`.
+Rendered before a component's own podLabels, so a component can still override one.
+*/}}
+{{- define "ref.podLabels" -}}
+{{- with .Values.podLabels -}}
+{{- toYaml . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Selector labels
 */}}
 {{- define "ref.selectorLabels" -}}
