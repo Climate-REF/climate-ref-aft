@@ -45,9 +45,6 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Labels added to every pod the chart renders, from the chart-wide `podLabels`.
 Rendered before a component's own podLabels, so a component can still override one.
-Kept out of ref.labels because a Deployment's selector is immutable,
-so a label that reached the selector would break the next upgrade.
-Returns an empty string when unset, so callers must use it through `with`.
 */}}
 {{- define "ref.podLabels" -}}
 {{- with .Values.podLabels -}}

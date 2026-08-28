@@ -1092,8 +1092,8 @@ def test_no_chart_wide_pod_labels_by_default(component, kind):
 
 
 def test_chart_wide_pod_labels_stay_off_the_selectors():
-    # A Deployment's selector is immutable, so a label that reached it
-    # would make the next upgrade of an existing release fail.
+    # A Deployment's selector is immutable
+    # A label that reached it would make the next upgrade of an existing release fail.
     docs = render("podLabels.environment=production")
     for component in ("api", "orchestrator", "pmp"):
         selector = find(docs, "Deployment", f"-{component}")["spec"]["selector"]["matchLabels"]
