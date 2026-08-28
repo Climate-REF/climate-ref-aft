@@ -24,6 +24,9 @@ spec:
       labels:
         app.kubernetes.io/component: flower
         {{- include "ref.labels" . | nindent 8 }}
+        {{- with (include "ref.podLabels" .) }}
+        {{- . | nindent 8 }}
+        {{- end }}
         {{- with .Values.flower.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

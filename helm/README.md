@@ -208,6 +208,14 @@ For ephemeral test deployments (no persistence across upgrades), `/ref` can also
 | `imagePullSecrets` | Docker registry secrets    | `[]`    |
 | `nameOverride`     | Override chart name        | `""`    |
 | `fullnameOverride` | Override full release name | `""`    |
+| `podLabels`        | Labels added to every pod  | `{}`    |
+
+`podLabels` covers every pod the chart renders, including the migration Job,
+and a component's own `podLabels` is applied on top of it.
+The labels stay off the Deployment selectors, which are immutable,
+so setting one on an existing release does not need a reinstall.
+This is the hook for a cluster-wide convention, such as an environment or
+ownership label that a log or metric collector reads off the pod.
 
 ### Diagnostic providers
 
