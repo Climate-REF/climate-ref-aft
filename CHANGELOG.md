@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.6.4 (2026-08-28)
+
+### Features
+
+- Adds a chart-wide `podLabels` value, applied to every pod the chart renders. ([#55](https://github.com/Climate-REF/climate-ref-aft/pulls/55))
+
+
 ## climate-ref-aft 0.6.3 (2026-08-27)
 
 ### Bug Fixes
