@@ -269,6 +269,18 @@ defaults:
   # Ignored once `autoscaling` or `keda` is enabled, because the autoscaler owns the replica count.
   replicaCount: 1
 
+  # Replace all pods of an instance before starting new ones.
+  # A rolling update would need a second 16Gi worker scheduled alongside the old one,
+  # which stalls Pending on a cluster sized for the fleet.
+  # A killed task is redelivered (task_acks_late), so Recreate loses nothing but time.
+  strategy:
+    type: Recreate
+
+  # How long a stopping pod may keep running its current task before the SIGKILL.
+  # Celery finishes the running task on SIGTERM, so this should sit just past the
+  # provider's CELERY_TASK_TIME_LIMIT or every rollout discards hours of compute.
+  terminationGracePeriodSeconds: 21900
+
   # Provider this worker runs, passed as `--provider`.
   # Defaults to the instance name, so a plain `esmvaltool:` instance needs nothing here.
   # Setting it decouples the two,
@@ -498,6 +510,7 @@ providers:
       limits:
         cpu: 6
         memory: 32Gi
+    terminationGracePeriodSeconds: 7500
     env:
       CELERY_TASK_TIME_LIMIT: "7200"           # 2 hours
       CELERY_TASK_SOFT_TIME_LIMIT: "6600"      # 1 hour 50 minutes
@@ -516,6 +529,7 @@ providers:
       limits:
         cpu: 6
         memory: 48Gi
+    terminationGracePeriodSeconds: 2100
     env:
       CELERY_TASK_TIME_LIMIT: "1800"           # 30 minutes
       CELERY_TASK_SOFT_TIME_LIMIT: "1500"      # 25 minutes

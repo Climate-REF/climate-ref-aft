@@ -59,6 +59,10 @@ spec:
   {{- if not (include "ref.autoscalerEnabled" $spec) }}
   replicas: {{ $spec.replicaCount }}
   {{- end }}
+  {{- with $spec.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/component: {{ $instance }}
@@ -101,6 +105,9 @@ spec:
       {{- with $spec.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $spec.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ . }}
       {{- end }}
       {{- with include "ref.waitForDragonfly" $ }}
       {{- . | nindent 6 }}
