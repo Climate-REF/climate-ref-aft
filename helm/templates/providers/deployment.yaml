@@ -106,8 +106,9 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with $spec.terminationGracePeriodSeconds }}
-      terminationGracePeriodSeconds: {{ . }}
+      {{- /* Not `with`, so an explicit 0 still renders instead of falling back to the 30s default. */}}
+      {{- if not (kindIs "invalid" $spec.terminationGracePeriodSeconds) }}
+      terminationGracePeriodSeconds: {{ $spec.terminationGracePeriodSeconds }}
       {{- end }}
       {{- with include "ref.waitForDragonfly" $ }}
       {{- . | nindent 6 }}

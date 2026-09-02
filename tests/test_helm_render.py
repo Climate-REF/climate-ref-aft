@@ -905,7 +905,7 @@ def test_celery_routes_change_restarts_the_api_and_workers():
     # The table is mounted from a ConfigMap, so without a checksum annotation
     # an edited routing table never reaches the running pods.
     docs = render(values=SIZE_VALUES)
-    for name in ["-api", "-esmvaltool"]:
+    for name in ["-api", *[f"-{provider}" for provider in PROVIDERS]]:
         annotations = find(docs, "Deployment", name)["spec"]["template"]["metadata"]["annotations"]
         assert "checksum/celery-routes" in annotations
 
