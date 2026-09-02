@@ -23,6 +23,9 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/api/secret.yaml") . | sha256sum }}
+        {{- with .Values.celeryRoutes }}
+        checksum/celery-routes: {{ . | sha256sum }}
+        {{- end }}
       {{- with .Values.api.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
