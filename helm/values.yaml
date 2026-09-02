@@ -233,6 +233,20 @@ flower:
 # Not mounted unless specified in volumes and volumeMounts arrays
 createPVCs: {}
 
+# The database migration hook, run before every install and upgrade.
+# It takes the orchestrator's env, volumes and scheduling, because migrations
+# must run against the same database the application then uses.
+migrate:
+  # A migration is one short single-connection process, so it needs far less than a worker.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+  # Fail the hook rather than hold `helm upgrade` open when a migration hangs on a lock.
+  activeDeadlineSeconds: 600
+
 defaults:
   env:
     CELERY_BROKER_URL: '{{ include "ref.brokerUrl" . }}'

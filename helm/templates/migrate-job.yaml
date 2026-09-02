@@ -27,6 +27,8 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   backoffLimit: 3
+  {{- /* Fail the hook rather than hold `helm upgrade` open when a migration hangs on a lock. */}}
+  activeDeadlineSeconds: {{ .Values.migrate.activeDeadlineSeconds }}
   template:
     metadata:
       labels:
@@ -35,20 +37,25 @@ spec:
         {{- . | nindent 8 }}
         {{- end }}
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
       {{- with $migrate.priorityClassName }}
       priorityClassName: {{ . | quote }}
       {{- end }}
-      {{- with .Values.defaults.podSecurityContext }}
+      {{- with $migrate.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       restartPolicy: Never
       containers:
       - name: migrate
-        image: "{{ .Values.defaults.image.repository }}:{{ .Values.defaults.image.tag }}"
-        imagePullPolicy: {{ .Values.defaults.image.pullPolicy }}
+        image: "{{ $migrate.image.repository }}:{{ $migrate.image.tag }}"
+        imagePullPolicy: {{ $migrate.image.pullPolicy }}
         command: ["ref", "db", "migrate"]
-        {{- with .Values.defaults.securityContext }}
+        {{- with $migrate.securityContext }}
         securityContext:
           {{- toYaml . | nindent 10 }}
         {{- end }}
@@ -58,6 +65,10 @@ spec:
         {{- with $migrate.extraEnvFrom }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+        {{- with .Values.migrate.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
         {{- with $migrate.volumeMounts }}
         volumeMounts:
           {{- toYaml . | nindent 10 }}
@@ -66,15 +77,15 @@ spec:
       volumes:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.defaults.nodeSelector }}
+      {{- with $migrate.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.defaults.affinity }}
+      {{- with $migrate.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.defaults.tolerations }}
+      {{- with $migrate.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
