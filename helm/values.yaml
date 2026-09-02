@@ -359,12 +359,17 @@ defaults:
       cpu: 6
       memory: 32Gi
 
+  # Plain HPA on resource utilisation. Prefer `keda` for queue-depth scaling,
+  # because CPU tracks a worker's load poorly while it sits idle between tasks.
   autoscaling:
     enabled: false
     minReplicas: 1
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
+    # Raw autoscaling/v2 metrics entries appended to the resource ones,
+    # e.g. an Object metric on a queue-depth gauge exposed outside this chart.
+    extraMetrics: []
 
   # Scale the worker on broker queue depth through KEDA, down to zero when its queues are empty.
   # Needs KEDA in the cluster, and cannot be combined with `autoscaling`.
