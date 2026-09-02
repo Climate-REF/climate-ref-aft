@@ -77,7 +77,7 @@ VALUES_FILES = [
     None,
     "helm/ci/minimal-values.yaml",
     "helm/ci/gh-actions-values.yaml",
-    "helm/local-test-values.yaml",
+    "helm/ci/local-values.yaml",
 ]
 
 
@@ -402,7 +402,7 @@ def test_broker_url_containing_an_apostrophe_survives_yaml_serialisation():
 def test_local_test_values_do_not_hardcode_the_broker_service():
     # A hardcoded broker URL silently defeats externalBroker and breaks any
     # release whose name is not the one baked into the string.
-    docs = render(values="helm/local-test-values.yaml")
+    docs = render(values="helm/ci/local-values.yaml")
     assert _provider_env(docs, "pmp")["CELERY_BROKER_URL"] == "redis://test-dragonfly:6379"
 
 
@@ -776,7 +776,7 @@ def test_migrate_job_follows_an_orchestrator_only_env_override():
     assert secret["stringData"]["REF_DATABASE_URL"] == "sqlite:////ref/db/other.db"
 
 
-@pytest.mark.parametrize("values", ["helm/ci/minimal-values.yaml", "helm/local-test-values.yaml"])
+@pytest.mark.parametrize("values", ["helm/ci/minimal-values.yaml", "helm/ci/local-values.yaml"])
 def test_orchestrator_and_migrate_job_inherit_the_default_ref_mount(values):
     # These files mount /ref through `defaults` alone and never name the orchestrator's volumes.
     # An empty `volumes` list in the orchestrator block replaces that inherited list rather than
@@ -853,6 +853,75 @@ def test_keda_and_hpa_together_fail_with_a_clear_message():
     )
     assert result.returncode != 0
     assert "autoscaling.enabled and keda.enabled both set" in result.stderr
+
+
+def test_hpa_scales_on_the_resource_metrics_from_values():
+    docs = render(
+        "providers.pmp.autoscaling.enabled=true",
+        "providers.pmp.autoscaling.targetMemoryUtilizationPercentage=70",
+    )
+    hpa = find(docs, "HorizontalPodAutoscaler", "-pmp")
+    metrics = {
+        m["resource"]["name"]: m["resource"]["target"]["averageUtilization"]
+        for m in hpa["spec"]["metrics"]
+    }
+    assert metrics == {"cpu": 80, "memory": 70}
+
+
+def test_hpa_with_no_metric_fails_with_a_clear_message():
+    # An HPA with no metric silently falls back to a cluster default,
+    # so the render refuses the combination instead.
+    result = _render(
+        "providers.pmp.autoscaling.enabled=true",
+        "providers.pmp.autoscaling.targetCPUUtilizationPercentage=null",
+    )
+    assert result.returncode != 0
+    assert "no metric" in result.stderr
+
+
+def test_migrate_job_is_bounded_and_schedulable():
+    # The hook blocks every install and upgrade, so it must carry its own
+    # resources, deadline and pull secrets rather than running BestEffort.
+    docs = render("imagePullSecrets[0].name=regcred")
+    job = find(docs, "Job", "-migrate")
+    spec = job["spec"]["template"]["spec"]
+    assert job["spec"]["activeDeadlineSeconds"] == 600
+    assert spec["imagePullSecrets"] == [{"name": "regcred"}]
+    assert spec["automountServiceAccountToken"] is False
+    assert spec["containers"][0]["resources"]["requests"]["memory"] == "512Mi"
+
+
+def test_workers_get_a_grace_period_covering_their_task_time_limit():
+    # SIGKILL after the default 30s would discard hours of diagnostic compute,
+    # so each worker's grace period sits just past its own hard time limit.
+    docs = render()
+    grace = {
+        p: find(docs, "Deployment", f"-{p}")["spec"]["template"]["spec"][
+            "terminationGracePeriodSeconds"
+        ]
+        for p in PROVIDERS
+    }
+    assert grace == {"orchestrator": 21900, "esmvaltool": 21900, "pmp": 7500, "ilamb": 2100}
+
+
+def test_celery_routes_change_restarts_the_api_and_workers():
+    # The table is mounted from a ConfigMap, so without a checksum annotation
+    # an edited routing table never reaches the running pods.
+    docs = render(values={"celeryRoutes": '[ilamb]\ndefault = "ilamb-small"\n'})
+    for name in ["-api", "-esmvaltool"]:
+        annotations = find(docs, "Deployment", name)["spec"]["template"]["metadata"]["annotations"]
+        assert "checksum/celery-routes" in annotations
+
+
+def test_flower_container_port_ignores_the_service_port():
+    # Flower always listens on 5555, so the Service port maps onto it.
+    # Reusing service.port as the containerPort left the readiness probe
+    # pointing at a port nothing listens on.
+    docs = render("flower.service.port=80")
+    port = find(docs, "Deployment", "-flower")["spec"]["template"]["spec"]["containers"][0][
+        "ports"
+    ][0]
+    assert port["containerPort"] == 5555
 
 
 def _prometheus_query(docs: list[dict], instance: str) -> str:
