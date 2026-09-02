@@ -3,6 +3,9 @@ name: climate-ref-aft
 description: A Helm chart for deploying the Climate REF application for the CMIP7 Assessment Fasttrack (AFT)
 type: application
 
+# autoscaling/v2 sets the floor.
+kubeVersion: ">=1.23.0-0"
+
 # Chart version tracks the AFT repo release version (SemVer)
 version: 0.6.4
 

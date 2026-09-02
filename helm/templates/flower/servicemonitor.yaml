@@ -2,15 +2,16 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "ref.fullname" . }}
+  name: {{ include "ref.fullname" . }}-flower
   labels:
     app.kubernetes.io/component: flower
     {{- include "ref.labels" . | nindent 4 }}
 spec:
+  {{- /* Selector labels only, because ref.labels carries the chart version and would stop matching on every bump. */}}
   selector:
     matchLabels:
       app.kubernetes.io/component: flower
-      {{- include "ref.labels" . | nindent 4 }}
+      {{- include "ref.selectorLabels" . | nindent 6 }}
   endpoints:
   - port: http
     path: /metrics

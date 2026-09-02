@@ -20,13 +20,6 @@ api:
     REF_CONFIGURATION: /ref
     REF_DIAGNOSTIC_PROVIDERS: climate_ref_esmvaltool:provider,climate_ref_ilamb:provider,climate_ref_pmp:provider
 
-  ingress:
-    enabled: false
-    host:
-    className: ""
-    annotations: {}
-    labels: {}
-
   httpRoute:
     enabled: false
     hostnames: []
@@ -50,8 +43,11 @@ api:
     runAsUser: 1000
     runAsGroup: 1000
     fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
 
   securityContext:
+    allowPrivilegeEscalation: false
     capabilities:
       drop:
       - ALL
@@ -158,13 +154,6 @@ flower:
     accept_content = ['application/json', 'application/x-ref-json', 'application/x-python-serialize']
     result_accept_content = accept_content
 
-  ingress:
-    enabled: false
-    host:
-    className: ""
-    annotations: {}
-    labels: {}
-
   httpRoute:
     enabled: false
     hostnames: []
@@ -198,8 +187,11 @@ flower:
     runAsUser: 1000
     runAsGroup: 1000
     fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
 
   securityContext:
+    allowPrivilegeEscalation: false
     capabilities:
       drop:
       - ALL
@@ -218,13 +210,6 @@ flower:
     limits:
       memory: 512Mi
 
-  autoscaling:
-    enabled: false
-    minReplicas: 1
-    maxReplicas: 100
-    targetCPUUtilizationPercentage: 80
-    # targetMemoryUtilizationPercentage: 80
-
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -232,6 +217,18 @@ flower:
 # A mapping of name: size for PVCs to create. Name will be prepended with release name.
 # Not mounted unless specified in volumes and volumeMounts arrays
 createPVCs: {}
+
+# The database migration hook, run before every install and upgrade.
+# Everything else comes from the orchestrator's spec, so it migrates the database the app then uses.
+migrate:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+  # Fail the hook rather than hold `helm upgrade` open when a migration hangs on a lock.
+  activeDeadlineSeconds: 600
 
 defaults:
   env:
@@ -261,6 +258,15 @@ defaults:
 
   # Ignored once `autoscaling` or `keda` is enabled, because the autoscaler owns the replica count.
   replicaCount: 1
+
+  # Rolling needs a second full-size worker alongside the old one, which stalls on a full cluster.
+  # A killed task is redelivered, so Recreate loses nothing but time.
+  strategy:
+    type: Recreate
+
+  # Celery finishes the running task on SIGTERM, so this sits just past the provider's
+  # CELERY_TASK_TIME_LIMIT or every rollout discards hours of compute.
+  terminationGracePeriodSeconds: 21900
 
   # Provider this worker runs, passed as `--provider`.
   # Defaults to the instance name, so a plain `esmvaltool:` instance needs nothing here.
@@ -325,8 +331,11 @@ defaults:
     runAsUser: 1000
     runAsGroup: 1000
     fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
 
   securityContext:
+    allowPrivilegeEscalation: false
     capabilities:
       drop:
       - ALL
@@ -345,12 +354,17 @@ defaults:
       cpu: 6
       memory: 32Gi
 
+  # Plain HPA on resource utilisation. Prefer `keda` for queue-depth scaling,
+  # because CPU tracks a worker's load poorly while it sits idle between tasks.
   autoscaling:
     enabled: false
     minReplicas: 1
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
+    # Raw autoscaling/v2 metrics entries appended to the resource ones,
+    # e.g. an Object metric on a queue-depth gauge exposed outside this chart.
+    extraMetrics: []
 
   # Scale the worker on broker queue depth through KEDA, down to zero when its queues are empty.
   # Needs KEDA in the cluster, and cannot be combined with `autoscaling`.
@@ -486,6 +500,7 @@ providers:
       limits:
         cpu: 6
         memory: 32Gi
+    terminationGracePeriodSeconds: 7500
     env:
       CELERY_TASK_TIME_LIMIT: "7200"           # 2 hours
       CELERY_TASK_SOFT_TIME_LIMIT: "6600"      # 1 hour 50 minutes
@@ -504,6 +519,7 @@ providers:
       limits:
         cpu: 6
         memory: 48Gi
+    terminationGracePeriodSeconds: 2100
     env:
       CELERY_TASK_TIME_LIMIT: "1800"           # 30 minutes
       CELERY_TASK_SOFT_TIME_LIMIT: "1500"      # 25 minutes

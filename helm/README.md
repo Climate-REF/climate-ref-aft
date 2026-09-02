@@ -18,7 +18,7 @@ The chart deploys:
 
 ## Prerequisites
 
-- Kubernetes 1.19+
+- Kubernetes 1.23+ (autoscaling/v2), plus the Gateway API CRDs when using `httpRoute`
 - Helm 3.0+
 - Access to container images:
   - `ghcr.io/climate-ref/climate-ref-frontend`
@@ -63,8 +63,8 @@ helm dependency update
 
 ```mermaid
 flowchart TB
-    apiIngress[API Ingress<br/><i>optional</i>]
-    flowerIngress[Flower Ingress<br/><i>optional</i>]
+    apiRoute[API HTTPRoute<br/><i>optional</i>]
+    flowerRoute[Flower HTTPRoute<br/><i>optional</i>]
     api[ref-app<br/><i>API + frontend</i>]
     flower[Flower<br/><i>monitoring</i>]
     dragonfly[Dragonfly<br/><i>Redis broker</i>]
@@ -79,8 +79,8 @@ flowchart TB
 
     pvcs[(PVCs<br/><i>shared data storage</i>)]
 
-    apiIngress --> api
-    flowerIngress --> flower
+    apiRoute --> api
+    flowerRoute --> flower
     api --> db
     orchestrator --> db
     flower --> dragonfly
@@ -256,16 +256,6 @@ Set via `api.env`:
 | `LOG_LEVEL`         | Logging level                  | `INFO`                            |
 | `REF_CONFIGURATION` | Path to REF configuration      | `/ref`                            |
 
-#### API Ingress
-
-| Parameter                  | Description         | Default |
-| -------------------------- | ------------------- | ------- |
-| `api.ingress.enabled`      | Enable API ingress  | `false` |
-| `api.ingress.host`         | Ingress hostname    | `""`    |
-| `api.ingress.className`    | Ingress class name  | `""`    |
-| `api.ingress.annotations`  | Ingress annotations | `{}`    |
-| `api.ingress.labels`       | Ingress labels      | `{}`    |
-
 #### API HTTPRoute (Gateway API)
 
 | Parameter                    | Description                  | Default |
@@ -319,7 +309,7 @@ overrides this helper and will keep pointing at whatever it hardcodes.
 | ------------------------------- | -------------------------------- | -------------- |
 | `flower.replicaCount`           | Number of Flower replicas        | `1`            |
 | `flower.image.repository`       | Flower image repository          | `mher/flower`  |
-| `flower.image.tag`              | Flower image tag                 | `2.0.1`        |
+| `flower.image.tag`              | Flower image tag                 | `2.1.0`        |
 | `flower.image.pullPolicy`       | Image pull policy                | `IfNotPresent` |
 | `flower.service.type`           | Service type                     | `ClusterIP`    |
 | `flower.service.port`           | Service port                     | `5555`         |
@@ -335,16 +325,6 @@ It registers a `ref-json` codec that decodes the wire form as plain JSON,
 because the `mher/flower` image does not have `climate_ref_celery` and so cannot use the real one.
 Without it the result API endpoint fails on a task body it is not allowed to decode.
 The task list is unaffected either way, because it is built from worker events, which are plain JSON.
-
-#### Flower Ingress
-
-| Parameter                     | Description             | Default |
-| ----------------------------- | ----------------------- | ------- |
-| `flower.ingress.enabled`      | Enable Flower ingress   | `false` |
-| `flower.ingress.host`         | Ingress hostname        | `""`    |
-| `flower.ingress.className`    | Ingress class name      | `""`    |
-| `flower.ingress.annotations`  | Ingress annotations     | `{}`    |
-| `flower.ingress.labels`       | Ingress labels          | `{}`    |
 
 #### Flower HTTPRoute (Gateway API)
 
@@ -362,20 +342,52 @@ These defaults apply to all providers unless overridden per-provider.
 `priorityClassName` covers the orchestrator and the db-migrate hook as well,
 and carries the same `PriorityClass` prerequisite as the API.
 
-| Parameter                    | Description                    | Default                           |
-| ---------------------------- | ------------------------------ | --------------------------------- |
-| `defaults.replicaCount`      | Number of worker replicas      | `1`                               |
-| `defaults.concurrency`       | Celery child processes per pod | `1`                               |
-| `defaults.image.repository`  | Worker image repository        | `ghcr.io/climate-ref/climate-ref` |
-| `defaults.image.tag`         | Worker image tag               | `v0.17.2`                         |
-| `defaults.image.pullPolicy`  | Image pull policy              | `IfNotPresent`                    |
-| `defaults.resources`         | Resource requests/limits       | 4 CPU / 16Gi, limits 6 CPU / 32Gi |
-| `defaults.priorityClassName` | Scheduling priority class      | `""`                              |
-| `defaults.nodeSelector`      | Node selector                  | `{}`                              |
-| `defaults.tolerations`       | Tolerations                    | `[]`                              |
-| `defaults.affinity`          | Affinity rules                 | `{}`                              |
-| `defaults.volumes`           | Additional volumes             | `[]`                              |
-| `defaults.volumeMounts`      | Additional volume mounts       | `[]`                              |
+| Parameter                                | Description                                                | Default                           |
+| ---------------------------------------- | ---------------------------------------------------------- | --------------------------------- |
+| `defaults.replicaCount`                  | Number of worker replicas                                  | `1`                               |
+| `defaults.concurrency`                   | Celery child processes per pod                             | `1`                               |
+| `defaults.image.repository`              | Worker image repository                                    | `ghcr.io/climate-ref/climate-ref` |
+| `defaults.image.tag`                     | Worker image tag                                           | `v0.17.2`                         |
+| `defaults.image.pullPolicy`              | Image pull policy                                          | `IfNotPresent`                    |
+| `defaults.resources`                     | Resource requests/limits                                   | 4 CPU / 16Gi, limits 6 CPU / 32Gi |
+| `defaults.strategy`                      | Deployment update strategy                                 | `type: Recreate`                  |
+| `defaults.terminationGracePeriodSeconds` | Seconds a stopping pod may finish its task                 | `21900`                           |
+| `defaults.extraEnvFrom`                  | Extra `envFrom` sources, appended after the chart's Secret | `[]`                              |
+| `defaults.priorityClassName`             | Scheduling priority class                                  | `""`                              |
+| `defaults.nodeSelector`                  | Node selector                                              | `{}`                              |
+| `defaults.tolerations`                   | Tolerations                                                | `[]`                              |
+| `defaults.affinity`                      | Affinity rules                                             | `{}`                              |
+| `defaults.volumes`                       | Additional volumes                                         | `[]`                              |
+| `defaults.volumeMounts`                  | Additional volume mounts                                   | `[]`                              |
+
+### Secrets
+
+Values that must not sit in a values file, such as a database URL or broker password,
+reach the containers through `extraEnvFrom`.
+It appends sources after the chart's own Secret, so they win on any key both define.
+It applies per component,
+via `api.extraEnvFrom`, `defaults.extraEnvFrom` (all workers and the db-migrate hook), or per provider.
+
+```yaml
+api:
+  extraEnvFrom:
+  - secretRef:
+      name: ref-database
+defaults:
+  extraEnvFrom:
+  - secretRef:
+      name: ref-database
+```
+
+### Database migrations
+
+A `pre-install,pre-upgrade` hook Job runs `ref db migrate` before the release rolls out.
+It takes the orchestrator's env, volumes and scheduling.
+
+| Parameter                       | Description                                    | Default                 |
+| ------------------------------- | ---------------------------------------------- | ----------------------- |
+| `migrate.resources`             | Resource requests/limits for the hook          | 100m / 512Mi, limit 2Gi |
+| `migrate.activeDeadlineSeconds` | Fail the hook when a migration hangs on a lock | `600`                   |
 
 ### Sizing
 
@@ -685,14 +697,14 @@ createPVCs:
   results: 50Gi
 ```
 
-Mount them in providers:
+The PVC is named `<release>-climate-ref-aft-<name>`, so mounting it must use that full name:
 
 ```yaml
 defaults:
   volumes:
     - name: data
       persistentVolumeClaim:
-        claimName: ref-data
+        claimName: ref-climate-ref-aft-data
   volumeMounts:
     - name: data
       mountPath: /data
@@ -710,9 +722,16 @@ providers:
       minReplicas: 1
       maxReplicas: 10
       targetCPUUtilizationPercentage: 80
+      # targetMemoryUtilizationPercentage: 80
 ```
 
-The HPA uses a custom metric (`flower_task_prefetch_time_seconds`) to scale based on queue depth.
+The HPA scales on the resource metrics named in the values.
+`extraMetrics` appends raw `autoscaling/v2` entries for anything beyond CPU and memory,
+such as an Object metric on a queue-depth gauge exposed outside this chart.
+The render fails when `enabled` is set with no metric at all.
+
+CPU tracks a worker's load poorly while it sits idle between tasks,
+so prefer KEDA (below) when the goal is scaling on queue depth.
 
 ### Scale to zero with KEDA
 
@@ -794,11 +813,12 @@ so a worker killed mid-diagnostic pins a replica the instance never sheds.
 
 ## Security
 
-The chart implements security best practices:
+The chart defaults satisfy the `restricted` Pod Security Standard:
 
-- **Read-only root filesystem**: All containers use read-only root filesystems
-- **Non-root user**: All containers run as non-root
+- **Read-only root filesystem**: All containers, including the broker-wait init container
+- **Non-root user**: All containers run as non-root with `allowPrivilegeEscalation: false`
 - **Dropped capabilities**: All Linux capabilities are dropped
+- **Seccomp**: Every pod runs the `RuntimeDefault` profile
 - **Service account tokens**: Automounting disabled by default
 - **Pod security context**: `fsGroup: 1000` for shared file access
 
@@ -855,14 +875,13 @@ curl http://localhost:8000/api/v1/utils/health-check/
 
 The chart creates the following Kubernetes resources:
 
-| Resource                | Count           | Description                        |
-| ----------------------- | --------------- | ---------------------------------- |
-| Deployment              | 2 + N providers | API + Flower + one per provider    |
-| Service                 | 3               | API + Flower + Dragonfly           |
-| ServiceAccount          | 2 + N providers | API + Flower + one per provider    |
-| Secret                  | 2 + N providers | Environment config per component   |
-| ServiceMonitor          | 0-1             | Optional Prometheus integration    |
-| HorizontalPodAutoscaler | 0-N             | Optional per-provider              |
-| PersistentVolumeClaim   | N               | As configured in createPVCs        |
-| Ingress                 | 0-2             | Optional API and/or Flower ingress |
-| HTTPRoute               | 0-2             | Optional Gateway API routes        |
+| Resource                | Count         | Description                                             |
+| ----------------------- | ------------- | ------------------------------------------------------- |
+| Deployment              | 2 + N workers | API + Flower + orchestrator and one per provider        |
+| Service                 | 3             | API + Flower + Dragonfly                                |
+| ServiceAccount          | 2 + N workers | API + Flower + one per worker                           |
+| Secret                  | 3 + N workers | Environment config per component, plus the migrate hook |
+| ServiceMonitor          | 0-1           | Optional Prometheus integration                         |
+| HorizontalPodAutoscaler | 0-N           | Optional per-provider                                   |
+| PersistentVolumeClaim   | N             | As configured in createPVCs                             |
+| HTTPRoute               | 0-2           | Optional Gateway API routes                             |

@@ -26,6 +26,10 @@ spec:
       {{- with .Values.api.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
+        {{- /* Rendered last, so a podAnnotations override cannot detach the rollout trigger. */}}
+        {{- with include "ref.celeryRoutesChecksum" . }}
+        {{- . | nindent 8 }}
+        {{- end }}
       labels:
         app.kubernetes.io/component: api
         {{- include "ref.labels" . | nindent 8 }}

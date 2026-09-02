@@ -59,6 +59,10 @@ spec:
   {{- if not (include "ref.autoscalerEnabled" $spec) }}
   replicas: {{ $spec.replicaCount }}
   {{- end }}
+  {{- with $spec.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/component: {{ $instance }}
@@ -74,6 +78,9 @@ spec:
         checksum/config: {{ include "ref.providerSecret" (dict "root" $ "provider" $instance "spec" $spec) | sha256sum }}
         {{- if $spec.config }}
         checksum/configmap: {{ toYaml $spec.config | sha256sum }}
+        {{- end }}
+        {{- with include "ref.celeryRoutesChecksum" $ }}
+        {{- . | nindent 8 }}
         {{- end }}
       labels:
         app.kubernetes.io/component: {{ $instance }}
@@ -98,6 +105,10 @@ spec:
       {{- with $spec.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- /* Not `with`, so an explicit 0 still renders instead of falling back to the 30s default. */}}
+      {{- if not (kindIs "invalid" $spec.terminationGracePeriodSeconds) }}
+      terminationGracePeriodSeconds: {{ $spec.terminationGracePeriodSeconds }}
       {{- end }}
       {{- with include "ref.waitForDragonfly" $ }}
       {{- . | nindent 6 }}

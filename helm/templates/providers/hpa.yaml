@@ -1,7 +1,11 @@
 {{- include "ref.validateOrchestrator" . -}}
 {{- range $instance, $spec := (fromYaml (include "ref.workerInstances" .)) -}}
 {{- $spec := include "ref.providerSpec" (dict "root" $ "spec" $spec) | fromYaml -}}
-{{- if ($spec.autoscaling | default dict).enabled }}
+{{- $autoscaling := $spec.autoscaling | default dict -}}
+{{- if $autoscaling.enabled }}
+{{- if not (or $autoscaling.targetCPUUtilizationPercentage $autoscaling.targetMemoryUtilizationPercentage $autoscaling.extraMetrics) -}}
+{{- fail (printf "providers.%s: autoscaling.enabled is set but no metric is, so set targetCPUUtilizationPercentage, targetMemoryUtilizationPercentage or extraMetrics" $instance) -}}
+{{- end }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -14,20 +18,28 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: {{ include "ref.fullname" $ }}-{{ $instance }}
-  minReplicas: {{ $spec.autoscaling.minReplicas }}
-  maxReplicas: {{ $spec.autoscaling.maxReplicas }}
+  minReplicas: {{ $autoscaling.minReplicas }}
+  maxReplicas: {{ $autoscaling.maxReplicas }}
   metrics:
-  - type: Object
-    object:
-      metric:
-        name: flower_task_prefetch_time_seconds
-      describedObject:
-        apiVersion: v1
-        kind: Service
-        name: celery-metrics-service # Service exposing Celery metrics
+  {{- with $autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: cpu
       target:
-        type: Value
-        value: "50" # Scale up if queue length exceeds 50
-{{- end }}
+        type: Utilization
+        averageUtilization: {{ . }}
+  {{- end }}
+  {{- with $autoscaling.targetMemoryUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ . }}
+  {{- end }}
+  {{- with $autoscaling.extraMetrics }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
 ---
+{{- end }}
 {{ end -}}

@@ -14,10 +14,9 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  {{- with .Values.flower.httpRoute.parentRefs }}
+  {{- /* A route with no parentRefs renders happily but attaches to no Gateway, so refuse it. */}}
   parentRefs:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- toYaml (required "flower.httpRoute.enabled is set, so flower.httpRoute.parentRefs must name the Gateway to attach to" .Values.flower.httpRoute.parentRefs) | nindent 4 }}
   {{- with .Values.flower.httpRoute.hostnames }}
   hostnames:
     {{- toYaml . | nindent 4 }}

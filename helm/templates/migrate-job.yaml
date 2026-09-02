@@ -1,7 +1,7 @@
 {{- /* Migrations write the database the orchestrator then uses, so the Job takes the
        orchestrator's settings throughout. Splitting env from volumes here would let a
        migration run against a different database than the one the app talks to. */ -}}
-{{- $migrate := mergeOverwrite (deepCopy .Values.defaults) (omit (.Values.orchestrator | default dict) "enabled" "resources") -}}
+{{- $migrate := include "ref.providerSpec" (dict "root" . "spec" (omit (.Values.orchestrator | default dict) "enabled" "resources")) | fromYaml -}}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -13,7 +13,7 @@ metadata:
     "helm.sh/hook-weight": "-5"
     "helm.sh/hook-delete-policy": before-hook-creation
 stringData:
-  {{- tpl (toYaml $migrate.env) . | nindent 2 }}
+  {{- include "ref.instanceEnv" (dict "root" . "spec" $migrate) | nindent 2 }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -27,6 +27,7 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   backoffLimit: 3
+  activeDeadlineSeconds: {{ .Values.migrate.activeDeadlineSeconds }}
   template:
     metadata:
       labels:
@@ -35,20 +36,25 @@ spec:
         {{- . | nindent 8 }}
         {{- end }}
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
       {{- with $migrate.priorityClassName }}
       priorityClassName: {{ . | quote }}
       {{- end }}
-      {{- with .Values.defaults.podSecurityContext }}
+      {{- with $migrate.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       restartPolicy: Never
       containers:
       - name: migrate
-        image: "{{ .Values.defaults.image.repository }}:{{ .Values.defaults.image.tag }}"
-        imagePullPolicy: {{ .Values.defaults.image.pullPolicy }}
+        image: "{{ $migrate.image.repository }}:{{ $migrate.image.tag }}"
+        imagePullPolicy: {{ $migrate.image.pullPolicy }}
         command: ["ref", "db", "migrate"]
-        {{- with .Values.defaults.securityContext }}
+        {{- with $migrate.securityContext }}
         securityContext:
           {{- toYaml . | nindent 10 }}
         {{- end }}
@@ -58,6 +64,10 @@ spec:
         {{- with $migrate.extraEnvFrom }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+        {{- with .Values.migrate.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
         {{- with $migrate.volumeMounts }}
         volumeMounts:
           {{- toYaml . | nindent 10 }}
@@ -66,15 +76,15 @@ spec:
       volumes:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.defaults.nodeSelector }}
+      {{- with $migrate.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.defaults.affinity }}
+      {{- with $migrate.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.defaults.tolerations }}
+      {{- with $migrate.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

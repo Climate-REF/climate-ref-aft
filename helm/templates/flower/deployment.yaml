@@ -6,9 +6,7 @@ metadata:
     app.kubernetes.io/component: flower
     {{- include "ref.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.flower.autoscaling.enabled }}
   replicas: {{ .Values.flower.replicaCount }}
-  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/component: flower
@@ -63,7 +61,8 @@ spec:
             name: {{ include "ref.fullname" . }}-flower
         ports:
         - name: http
-          containerPort: {{ .Values.flower.service.port }}
+          # Flower always listens on 5555, so the Service port maps onto this rather than replacing it.
+          containerPort: 5555
         readinessProbe:
           httpGet:
             path: /healthcheck

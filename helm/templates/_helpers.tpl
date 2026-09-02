@@ -174,12 +174,6 @@ Returns a YAML mapping, so callers must pipe it through `fromYaml`.
 {{- end -}}
 
 {{/*
-Render one provider's Secret.
-Takes a dict of `root`, `provider` and `spec` (already resolved through ref.providerSpec).
-The Deployment hashes this to key its pods to their own environment,
-so a change to one provider does not restart the others.
-*/}}
-{{/*
 An instance's environment with its templates rendered, as the container will receive it.
 Takes a dict of `root` and `spec` (already resolved through ref.providerSpec).
 Values may themselves be templates, as the shipped broker URL is,
@@ -190,6 +184,12 @@ Returns a YAML mapping, so callers must pipe it through `fromYaml`.
 {{- tpl (toYaml (.spec.env | default dict)) .root -}}
 {{- end -}}
 
+{{/*
+Render one provider's Secret.
+Takes a dict of `root`, `provider` and `spec` (already resolved through ref.providerSpec).
+The Deployment hashes this to key its pods to their own environment,
+so a change to one provider does not restart the others.
+*/}}
 {{- define "ref.providerSecret" -}}
 apiVersion: v1
 kind: Secret
@@ -229,6 +229,15 @@ Takes the root context.
 initContainers:
 - name: wait-for-dragonfly
   image: busybox:1.37
+  {{- /* Hardened like the main containers, so the pod still passes the restricted Pod Security Standard. */}}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 65534
   command:
   - sh
   - -c
@@ -243,13 +252,6 @@ initContainers:
 {{- end -}}
 
 {{/*
-Resolve the Celery broker URL.
-Uses the bundled Dragonfly subchart when it is deployed,
-otherwise the operator must point the chart at their own broker via externalBroker.url.
-The URL is escaped for the single-quoted YAML scalar that toYaml emits,
-because tpl injects it after that quoting has already happened.
-*/}}
-{{/*
 The bundled Dragonfly as `host:port`, so the broker URL and the KEDA trigger cannot drift apart.
 Takes the root context. Only meaningful when ref.dragonflyEnabled is true.
 */}}
@@ -258,6 +260,13 @@ Takes the root context. Only meaningful when ref.dragonflyEnabled is true.
 {{ include "dragonfly.fullname" .Subcharts.dragonfly }}:{{ $dragonfly.service.port }}
 {{- end -}}
 
+{{/*
+Resolve the Celery broker URL.
+Uses the bundled Dragonfly subchart when it is deployed,
+otherwise the operator must point the chart at their own broker via externalBroker.url.
+The URL is escaped for the single-quoted YAML scalar that toYaml emits,
+because tpl injects it after that quoting has already happened.
+*/}}
 {{- define "ref.brokerUrl" -}}
 {{- if include "ref.dragonflyEnabled" . -}}
 redis://{{ include "ref.dragonflyAddress" . }}
@@ -289,4 +298,11 @@ configMap:
 {{- define "ref.celeryRoutesEnv" -}}
 - name: REF_CELERY_ROUTES
   value: {{ include "ref.celeryRoutesDir" . }}/routes.toml
+{{- end }}
+
+{{- /* Pod annotation that restarts the API and workers when the routing table changes. */ -}}
+{{- define "ref.celeryRoutesChecksum" -}}
+{{- with .Values.celeryRoutes -}}
+checksum/celery-routes: {{ . | sha256sum }}
+{{- end -}}
 {{- end }}
