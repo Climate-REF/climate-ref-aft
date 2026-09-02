@@ -79,8 +79,8 @@ spec:
         {{- if $spec.config }}
         checksum/configmap: {{ toYaml $spec.config | sha256sum }}
         {{- end }}
-        {{- with $.Values.celeryRoutes }}
-        checksum/celery-routes: {{ . | sha256sum }}
+        {{- with include "ref.celeryRoutesChecksum" $ }}
+        {{- . | nindent 8 }}
         {{- end }}
       labels:
         app.kubernetes.io/component: {{ $instance }}

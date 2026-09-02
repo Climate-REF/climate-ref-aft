@@ -63,8 +63,8 @@ helm dependency update
 
 ```mermaid
 flowchart TB
-    apiIngress[API HTTPRoute<br/><i>optional</i>]
-    flowerIngress[Flower HTTPRoute<br/><i>optional</i>]
+    apiRoute[API HTTPRoute<br/><i>optional</i>]
+    flowerRoute[Flower HTTPRoute<br/><i>optional</i>]
     api[ref-app<br/><i>API + frontend</i>]
     flower[Flower<br/><i>monitoring</i>]
     dragonfly[Dragonfly<br/><i>Redis broker</i>]
@@ -79,8 +79,8 @@ flowchart TB
 
     pvcs[(PVCs<br/><i>shared data storage</i>)]
 
-    apiIngress --> api
-    flowerIngress --> flower
+    apiRoute --> api
+    flowerRoute --> flower
     api --> db
     orchestrator --> db
     flower --> dragonfly

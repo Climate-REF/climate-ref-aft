@@ -299,3 +299,10 @@ configMap:
 - name: REF_CELERY_ROUTES
   value: {{ include "ref.celeryRoutesDir" . }}/routes.toml
 {{- end }}
+
+{{- /* Pod annotation that restarts the API and workers when the routing table changes. */ -}}
+{{- define "ref.celeryRoutesChecksum" -}}
+{{- with .Values.celeryRoutes -}}
+checksum/celery-routes: {{ . | sha256sum }}
+{{- end -}}
+{{- end }}
