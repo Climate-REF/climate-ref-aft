@@ -914,9 +914,7 @@ def test_celery_routes_change_restarts_the_api_and_workers():
 
 
 def test_flower_container_port_ignores_the_service_port():
-    # Flower always listens on 5555, so the Service port maps onto it.
-    # Reusing service.port as the containerPort left the readiness probe
-    # pointing at a port nothing listens on.
+    # Flower always listens on 5555, so the Service port maps onto it rather than replacing it.
     docs = render("flower.service.port=80")
     port = find(docs, "Deployment", "-flower")["spec"]["template"]["spec"]["containers"][0][
         "ports"

@@ -360,8 +360,9 @@ and carries the same `PriorityClass` prerequisite as the API.
 | `defaults.volumes`           | Additional volumes             | `[]`                              |
 | `defaults.volumeMounts`      | Additional volume mounts       | `[]`                              |
 
-Workers use `strategy: Recreate`, because a rolling update needs a second full-size worker
-scheduled alongside the old one, which stalls Pending on a cluster sized for the fleet.
+Workers use `strategy: Recreate`,
+because a rolling update needs a second full-size worker scheduled alongside the old one,
+which stalls Pending on a cluster sized for the fleet.
 A killed task is redelivered (`task_acks_late`), so Recreate loses nothing but time.
 
 `terminationGracePeriodSeconds` is how long a stopping pod may keep running its current task.
@@ -373,9 +374,9 @@ so each provider's value sits just past its own `CELERY_TASK_TIME_LIMIT`
 
 Values that must not sit in a values file, such as a database URL or broker password,
 reach the containers through `extraEnvFrom`.
-It appends sources after the chart's own Secret, so they win on any key both define,
-and it applies per component: `api.extraEnvFrom`, `defaults.extraEnvFrom` (all workers
-and the db-migrate hook), or per provider.
+It appends sources after the chart's own Secret, so they win on any key both define.
+It applies per component,
+via `api.extraEnvFrom`, `defaults.extraEnvFrom` (all workers and the db-migrate hook), or per provider.
 
 ```yaml
 api:

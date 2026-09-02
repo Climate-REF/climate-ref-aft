@@ -219,8 +219,7 @@ flower:
 createPVCs: {}
 
 # The database migration hook, run before every install and upgrade.
-# It takes the orchestrator's env, volumes and scheduling, because migrations
-# must run against the same database the application then uses.
+# Everything else comes from the orchestrator's spec, so it migrates the database the app then uses.
 migrate:
   # A migration is one short single-connection process, so it needs far less than a worker.
   resources:
@@ -261,16 +260,13 @@ defaults:
   # Ignored once `autoscaling` or `keda` is enabled, because the autoscaler owns the replica count.
   replicaCount: 1
 
-  # Replace all pods of an instance before starting new ones.
-  # A rolling update would need a second 16Gi worker scheduled alongside the old one,
-  # which stalls Pending on a cluster sized for the fleet.
-  # A killed task is redelivered (task_acks_late), so Recreate loses nothing but time.
+  # Rolling needs a second full-size worker alongside the old one, which stalls on a full cluster.
+  # A killed task is redelivered, so Recreate loses nothing but time.
   strategy:
     type: Recreate
 
-  # How long a stopping pod may keep running its current task before the SIGKILL.
-  # Celery finishes the running task on SIGTERM, so this should sit just past the
-  # provider's CELERY_TASK_TIME_LIMIT or every rollout discards hours of compute.
+  # Celery finishes the running task on SIGTERM, so this sits just past the provider's
+  # CELERY_TASK_TIME_LIMIT or every rollout discards hours of compute.
   terminationGracePeriodSeconds: 21900
 
   # Provider this worker runs, passed as `--provider`.

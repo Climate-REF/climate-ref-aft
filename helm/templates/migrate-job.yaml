@@ -27,7 +27,6 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   backoffLimit: 3
-  {{- /* Fail the hook rather than hold `helm upgrade` open when a migration hangs on a lock. */}}
   activeDeadlineSeconds: {{ .Values.migrate.activeDeadlineSeconds }}
   template:
     metadata:
