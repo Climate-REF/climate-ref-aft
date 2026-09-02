@@ -20,13 +20,6 @@ api:
     REF_CONFIGURATION: /ref
     REF_DIAGNOSTIC_PROVIDERS: climate_ref_esmvaltool:provider,climate_ref_ilamb:provider,climate_ref_pmp:provider
 
-  ingress:
-    enabled: false
-    host:
-    className: ""
-    annotations: {}
-    labels: {}
-
   httpRoute:
     enabled: false
     hostnames: []
@@ -160,13 +153,6 @@ flower:
 
     accept_content = ['application/json', 'application/x-ref-json', 'application/x-python-serialize']
     result_accept_content = accept_content
-
-  ingress:
-    enabled: false
-    host:
-    className: ""
-    annotations: {}
-    labels: {}
 
   httpRoute:
     enabled: false

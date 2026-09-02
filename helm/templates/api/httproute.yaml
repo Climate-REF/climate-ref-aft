@@ -14,10 +14,9 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  {{- with .Values.api.httpRoute.parentRefs }}
+  {{- /* A route with no parentRefs renders happily but attaches to no Gateway, so refuse it. */}}
   parentRefs:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- toYaml (required "api.httpRoute.enabled is set, so api.httpRoute.parentRefs must name the Gateway to attach to" .Values.api.httpRoute.parentRefs) | nindent 4 }}
   {{- with .Values.api.httpRoute.hostnames }}
   hostnames:
     {{- toYaml . | nindent 4 }}
