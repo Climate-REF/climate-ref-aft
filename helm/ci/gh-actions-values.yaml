@@ -24,9 +24,6 @@ api:
   - name: tmp
     mountPath: /tmp
 
-service:
-  type: NodePort
-
 flower:
   podSecurityContext:
     runAsUser: 1000
