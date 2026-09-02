@@ -20,7 +20,7 @@ and then hits the `ref-app` API to confirm the records the workers wrote are vis
 
 ```bash
 # Install the chart from the working tree
-helm install ref ./helm -f helm/local-test-values.yaml
+helm install ref ./helm -f helm/ci/local-values.yaml
 ```
 
 The released chart is installed from the OCI registry instead, as in the
