@@ -12,7 +12,7 @@ api:
   image:
     repository: ghcr.io/climate-ref/climate-ref-frontend
     pullPolicy: IfNotPresent
-    tag: v0.5.0
+    tag: v0.6.0
 
   env:
     ENVIRONMENT: production
