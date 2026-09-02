@@ -862,8 +862,7 @@ def test_hpa_scales_on_the_resource_metrics_from_values():
     )
     hpa = find(docs, "HorizontalPodAutoscaler", "-pmp")
     metrics = {
-        m["resource"]["name"]: m["resource"]["target"]["averageUtilization"]
-        for m in hpa["spec"]["metrics"]
+        m["resource"]["name"]: m["resource"]["target"]["averageUtilization"] for m in hpa["spec"]["metrics"]
     }
     assert metrics == {"cpu": 80, "memory": 70}
 
@@ -896,9 +895,7 @@ def test_workers_get_a_grace_period_covering_their_task_time_limit():
     # so each worker's grace period sits just past its own hard time limit.
     docs = render()
     grace = {
-        p: find(docs, "Deployment", f"-{p}")["spec"]["template"]["spec"][
-            "terminationGracePeriodSeconds"
-        ]
+        p: find(docs, "Deployment", f"-{p}")["spec"]["template"]["spec"]["terminationGracePeriodSeconds"]
         for p in PROVIDERS
     }
     assert grace == {"orchestrator": 21900, "esmvaltool": 21900, "pmp": 7500, "ilamb": 2100}
@@ -916,9 +913,7 @@ def test_celery_routes_change_restarts_the_api_and_workers():
 def test_flower_container_port_ignores_the_service_port():
     # Flower always listens on 5555, so the Service port maps onto it rather than replacing it.
     docs = render("flower.service.port=80")
-    port = find(docs, "Deployment", "-flower")["spec"]["template"]["spec"]["containers"][0][
-        "ports"
-    ][0]
+    port = find(docs, "Deployment", "-flower")["spec"]["template"]["spec"]["containers"][0]["ports"][0]
     assert port["containerPort"] == 5555
 
 
