@@ -229,6 +229,15 @@ Takes the root context.
 initContainers:
 - name: wait-for-dragonfly
   image: busybox:1.37
+  {{- /* Hardened like the main containers, so the pod still passes the restricted Pod Security Standard. */}}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 65534
   command:
   - sh
   - -c

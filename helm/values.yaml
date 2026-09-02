@@ -50,8 +50,11 @@ api:
     runAsUser: 1000
     runAsGroup: 1000
     fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
 
   securityContext:
+    allowPrivilegeEscalation: false
     capabilities:
       drop:
       - ALL
@@ -198,8 +201,11 @@ flower:
     runAsUser: 1000
     runAsGroup: 1000
     fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
 
   securityContext:
+    allowPrivilegeEscalation: false
     capabilities:
       drop:
       - ALL
@@ -344,8 +350,11 @@ defaults:
     runAsUser: 1000
     runAsGroup: 1000
     fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
 
   securityContext:
+    allowPrivilegeEscalation: false
     capabilities:
       drop:
       - ALL
