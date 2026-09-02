@@ -221,7 +221,6 @@ createPVCs: {}
 # The database migration hook, run before every install and upgrade.
 # Everything else comes from the orchestrator's spec, so it migrates the database the app then uses.
 migrate:
-  # A migration is one short single-connection process, so it needs far less than a worker.
   resources:
     requests:
       cpu: 100m

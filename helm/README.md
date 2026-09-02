@@ -342,33 +342,23 @@ These defaults apply to all providers unless overridden per-provider.
 `priorityClassName` covers the orchestrator and the db-migrate hook as well,
 and carries the same `PriorityClass` prerequisite as the API.
 
-| Parameter                    | Description                    | Default                           |
-| ---------------------------- | ------------------------------ | --------------------------------- |
-| `defaults.replicaCount`      | Number of worker replicas      | `1`                               |
-| `defaults.concurrency`       | Celery child processes per pod | `1`                               |
-| `defaults.image.repository`  | Worker image repository        | `ghcr.io/climate-ref/climate-ref` |
-| `defaults.image.tag`         | Worker image tag               | `v0.17.2`                         |
-| `defaults.image.pullPolicy`  | Image pull policy              | `IfNotPresent`                    |
-| `defaults.resources`         | Resource requests/limits       | 4 CPU / 16Gi, limits 6 CPU / 32Gi |
-| `defaults.strategy`          | Deployment update strategy     | `type: Recreate`                  |
-| `defaults.terminationGracePeriodSeconds` | Seconds a stopping pod may finish its task | `21900` |
-| `defaults.extraEnvFrom`      | Extra `envFrom` sources, appended after the chart's Secret | `[]` |
-| `defaults.priorityClassName` | Scheduling priority class      | `""`                              |
-| `defaults.nodeSelector`      | Node selector                  | `{}`                              |
-| `defaults.tolerations`       | Tolerations                    | `[]`                              |
-| `defaults.affinity`          | Affinity rules                 | `{}`                              |
-| `defaults.volumes`           | Additional volumes             | `[]`                              |
-| `defaults.volumeMounts`      | Additional volume mounts       | `[]`                              |
-
-Workers use `strategy: Recreate`,
-because a rolling update needs a second full-size worker scheduled alongside the old one,
-which stalls Pending on a cluster sized for the fleet.
-A killed task is redelivered (`task_acks_late`), so Recreate loses nothing but time.
-
-`terminationGracePeriodSeconds` is how long a stopping pod may keep running its current task.
-Celery finishes the running task on SIGTERM,
-so each provider's value sits just past its own `CELERY_TASK_TIME_LIMIT`
-(`7500` for pmp, `2100` for ilamb), otherwise every rollout discards hours of compute.
+| Parameter                                | Description                                                | Default                           |
+| ---------------------------------------- | ---------------------------------------------------------- | --------------------------------- |
+| `defaults.replicaCount`                  | Number of worker replicas                                  | `1`                               |
+| `defaults.concurrency`                   | Celery child processes per pod                             | `1`                               |
+| `defaults.image.repository`              | Worker image repository                                    | `ghcr.io/climate-ref/climate-ref` |
+| `defaults.image.tag`                     | Worker image tag                                           | `v0.17.2`                         |
+| `defaults.image.pullPolicy`              | Image pull policy                                          | `IfNotPresent`                    |
+| `defaults.resources`                     | Resource requests/limits                                   | 4 CPU / 16Gi, limits 6 CPU / 32Gi |
+| `defaults.strategy`                      | Deployment update strategy                                 | `type: Recreate`                  |
+| `defaults.terminationGracePeriodSeconds` | Seconds a stopping pod may finish its task                 | `21900`                           |
+| `defaults.extraEnvFrom`                  | Extra `envFrom` sources, appended after the chart's Secret | `[]`                              |
+| `defaults.priorityClassName`             | Scheduling priority class                                  | `""`                              |
+| `defaults.nodeSelector`                  | Node selector                                              | `{}`                              |
+| `defaults.tolerations`                   | Tolerations                                                | `[]`                              |
+| `defaults.affinity`                      | Affinity rules                                             | `{}`                              |
+| `defaults.volumes`                       | Additional volumes                                         | `[]`                              |
+| `defaults.volumeMounts`                  | Additional volume mounts                                   | `[]`                              |
 
 ### Secrets
 
@@ -392,13 +382,12 @@ defaults:
 ### Database migrations
 
 A `pre-install,pre-upgrade` hook Job runs `ref db migrate` before the release rolls out.
-It takes the orchestrator's env, volumes and scheduling,
-because migrations must run against the same database the application then uses.
+It takes the orchestrator's env, volumes and scheduling.
 
-| Parameter                       | Description                                     | Default                 |
-| ------------------------------- | ----------------------------------------------- | ----------------------- |
-| `migrate.resources`             | Resource requests/limits for the hook           | 100m / 512Mi, limit 2Gi |
-| `migrate.activeDeadlineSeconds` | Fail the hook when a migration hangs on a lock  | `600`                   |
+| Parameter                       | Description                                    | Default                 |
+| ------------------------------- | ---------------------------------------------- | ----------------------- |
+| `migrate.resources`             | Resource requests/limits for the hook          | 100m / 512Mi, limit 2Gi |
+| `migrate.activeDeadlineSeconds` | Fail the hook when a migration hangs on a lock | `600`                   |
 
 ### Sizing
 
@@ -886,13 +875,13 @@ curl http://localhost:8000/api/v1/utils/health-check/
 
 The chart creates the following Kubernetes resources:
 
-| Resource                | Count           | Description                        |
-| ----------------------- | --------------- | ---------------------------------- |
-| Deployment              | 2 + N workers   | API + Flower + orchestrator and one per provider |
-| Service                 | 3               | API + Flower + Dragonfly           |
-| ServiceAccount          | 2 + N workers   | API + Flower + one per worker      |
-| Secret                  | 3 + N workers   | Environment config per component, plus the migrate hook |
-| ServiceMonitor          | 0-1             | Optional Prometheus integration    |
-| HorizontalPodAutoscaler | 0-N             | Optional per-provider              |
-| PersistentVolumeClaim   | N               | As configured in createPVCs        |
-| HTTPRoute               | 0-2             | Optional Gateway API routes        |
+| Resource                | Count         | Description                                             |
+| ----------------------- | ------------- | ------------------------------------------------------- |
+| Deployment              | 2 + N workers | API + Flower + orchestrator and one per provider        |
+| Service                 | 3             | API + Flower + Dragonfly                                |
+| ServiceAccount          | 2 + N workers | API + Flower + one per worker                           |
+| Secret                  | 3 + N workers | Environment config per component, plus the migrate hook |
+| ServiceMonitor          | 0-1           | Optional Prometheus integration                         |
+| HorizontalPodAutoscaler | 0-N           | Optional per-provider                                   |
+| PersistentVolumeClaim   | N             | As configured in createPVCs                             |
+| HTTPRoute               | 0-2           | Optional Gateway API routes                             |
