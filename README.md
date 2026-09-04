@@ -44,6 +44,17 @@ The `versions.toml` file pins the exact versions of each component in a given re
 helm install ref oci://ghcr.io/climate-ref/charts/climate-ref-aft --version 0.6.4
 ```
 
+## Operating
+
+Runbooks for running a deployment live under `docs/runbooks/`:
+
+- [Bootstrap a deployment](docs/runbooks/bootstrap-a-deployment.md) takes the chart from `helm install`
+  to a deployment that can solve.
+- [Run and triage a solve](docs/runbooks/run-and-triage-a-solve.md) covers running, watching and unsticking a solve.
+
+[`helm/examples/small-values.yaml`](helm/examples/small-values.yaml) is a starting point for a single-node deployment.
+The [chart README](helm/README.md) documents every value.
+
 ## Development
 
 [DEVELOPMENT.md](DEVELOPMENT.md) covers running the stack locally,
