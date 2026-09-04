@@ -3,7 +3,7 @@
 Before we can run the executions, we must run some initial commands to bootstrap a new deployment.
 
 Every `ref` command below runs inside the orchestrator pod.
-It is the one pod with a writable `/ref`  directory.
+It is the one pod with a writable `/ref` directory.
 
 ```bash
 export NS=climate-ref
@@ -26,7 +26,7 @@ Setting `nameOverride` shortens that to `<release>-<component>`, so adjust the a
 - Internet access from the orchestrator pod.
   `providers setup` and `fetch-data` both download data and input files.
 - Optionally a Postgres database.
-  Left unset the REF uses SQLite under `/ref/db`, which is fine for a small deployment.
+  Left unset, the REF uses SQLite under `/ref/db`, which is fine for a small deployment.
 
 ## 1. Write the values file
 
@@ -71,8 +71,7 @@ kubectl -n $NS logs job/$RELEASE-climate-ref-aft-migrate
 After the install every pod should be Running, and the API answers its health check:
 
 ```bash
-kubectl -n $NS exec deploy/$RELEASE-climate-ref-aft-orchestrator -c orchestrator -- \
-  python3 -c "import urllib.request as u; print(u.urlopen('http://$RELEASE-climate-ref-aft-api/api/v1/utils/health-check/').read())"
+ref-orch python3 -c "import urllib.request as u; print(u.urlopen('http://$RELEASE-climate-ref-aft-api/api/v1/utils/health-check/').read())"
 ```
 
 ## 3. Set up the providers
@@ -84,11 +83,10 @@ ref-orch ref providers setup
 This does three things per provider:
 
 - builds its conda environment under `/ref/software`,
-- fetches its own reference data into `/ref/cache`, 10s of GB,
-- ingests that data and validates the result
+- fetches its own reference data into `/ref/cache`, tens of GB,
+- ingests that data and validates the result.
 
-This is idempontent and is safe to rerun.
-It should be run after an update.
+This is idempotent, so it is safe to rerun, and it should be rerun after an update.
 
 Building the conda environments can take a few minutes depending on the file system.
 
@@ -119,7 +117,8 @@ ref-orch ref datasets ingest --source-type obs4ref /ref/data/obs4ref
 
 The log ends with a progress bar at 100% once every file is copied into place.
 
-Additional obs4MIPs data will be required () to be downloaded from ESGF and ingested.
+Some AFT diagnostics also need obs4MIPs data that is not in the registry.
+Download it from ESGF into `/ref/data/obs4mips`, then ingest it under its own source type:
 
 ```bash
 ref-orch ref datasets ingest --source-type obs4mips /ref/data/obs4mips

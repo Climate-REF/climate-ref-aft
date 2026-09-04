@@ -119,23 +119,23 @@ You must wire up these volumes in your `values.yaml`, otherwise pods will crash 
 | `/ref` | API + all workers + migrate Job | `REF_CONFIGURATION` and `REF_SOFTWARE_ROOT=/ref/software`. Holds the config, the conda environments, scratch and results.  | Persistent volume (PVC or shared host mount). |
 | `/tmp` | API + all workers + migrate Job | `HOME=/tmp`. Diagnostic libraries (intake-esgf, ilamb3) create config directories on import, and the root FS is read-only.  | `emptyDir: {}` is sufficient.                 |
 
-#### Volumes
+#### Who writes what
 
 `/ref` is one volume, but the components need very different access to it.
 Granting every pod RW on the whole tree works,
 but narrowing access means a buggy or compromised diagnostic cannot clobber another provider's conda environment.
-The list below assumes `$REF_CONFIGURATION=/ref` and not other paths are modified via the
-[configuration](https://climate-ref.readthedocs.io/en/latest/configuration/#paths),
-and is consitent across all pods.
+The table below assumes `REF_CONFIGURATION=/ref` on every pod,
+with no path overridden through the
+[configuration](https://climate-ref.readthedocs.io/en/latest/configuration/#paths).
 
-| Subpath            | API | Provider workers | Orchestrator | Migrate Job |
-| ------------------ | --- | ---------------- | ------------ | ----------- |
-| `/ref/software`    | RO  | RO               | RW           | —           |
-| `/ref/scratch`     | —   | RW               | RW           | —           |
-| `/ref/cache`       | —   | RO               | RW           | —           |
-| `/ref/results`     | RO  | —                | RW           | —           |
-| `/ref/db`          | RW  | RW               | RW           | RW          |
-| `/ref/log`         | —   | RW               | RW           | RW          |
+| Subpath         | API | Provider workers | Orchestrator | Migrate Job |
+| --------------- | --- | ---------------- | ------------ | ----------- |
+| `/ref/software` | RO  | RO               | RW           | —           |
+| `/ref/scratch`  | —   | RW               | RW           | —           |
+| `/ref/cache`    | —   | RO               | RW           | —           |
+| `/ref/results`  | RO  | —                | RW           | —           |
+| `/ref/db`       | RW  | RW               | RW           | RW          |
+| `/ref/log`      | —   | RW               | RW           | RW          |
 
 The split follows from how the work is dispatched:
 
@@ -159,6 +159,7 @@ The split follows from how the work is dispatched:
 [`helm/examples/small-values.yaml`](examples/small-values.yaml) wires one claim into every pod with the split above.
 It is the values file the operator runbooks are rehearsed against,
 so start from it rather than from a hand-written block here.
+
 The migrate Job reuses the orchestrator's volumes, because migrations write the database.
 
 For ephemeral test deployments (no persistence across upgrades), `/ref` can also be an `emptyDir`, see [`helm/ci/minimal-values.yaml`](ci/minimal-values.yaml).

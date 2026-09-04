@@ -22,7 +22,7 @@ the queue in Dragonfly, the worker pods, and the orchestrator.
 
 ## Start a solve
 
-`solve` blocks until every execution finishes or the timeout passes by default.
+By default `solve` blocks until every execution finishes or the timeout passes.
 `--timeout 0` waits without limit.
 `--no-wait` queues everything and returns at once.
 Once the work is queued, it is processed by the workers and the `solve` process polls to determine if the work is complete.
@@ -107,7 +107,7 @@ Without it every running execution is failed, which is right only when no worker
 
 ## A worker that stops consuming
 
-If a Celery works is wedged and stays Running and Ready, but the queue backs up and it takes nothing.
+A wedged worker stays Running and Ready while its queue backs up and it takes nothing.
 Flower shows it online with nothing active.
 Restart it:
 
