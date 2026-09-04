@@ -6,7 +6,7 @@ How to run a solve on a bootstrapped deployment, watch it, and get it unstuck.
 ```bash
 export NS=climate-ref
 export RELEASE=ref
-alias reforch="kubectl -n $NS exec deploy/$RELEASE-climate-ref-aft-orchestrator -c orchestrator --"
+alias ref-orch="kubectl -n $NS exec deploy/$RELEASE-climate-ref-aft-orchestrator -c orchestrator --"
 ```
 
 ## How a solve moves
@@ -22,18 +22,12 @@ the queue in Dragonfly, the worker pods, and the orchestrator.
 
 ## Start a solve
 
-`solve` blocks until every execution finishes or the timeout passes.
-Detach it so the exec dying does not stop it, and log it under `/ref/log`:
-
-```bash
-reforch sh -c 'setsid nohup ref solve --timeout 0 > /ref/log/solve.log 2>&1 < /dev/null &'
-```
-
+`solve` blocks until every execution finishes or the timeout passes by default.
 `--timeout 0` waits without limit.
 `--no-wait` queues everything and returns at once.
-The work carries on either way, because the workers hold the tasks, not the `solve` process.
+Once the work is queued, it is processed by the workers and the `solve` process polls to determine if the work is complete.
 
-Narrow it while learning what a deployment does:
+Additional filters can be passed to solve a subset of diagnostics/datasets.
 
 - `--provider pmp` or `--diagnostic annual-cycle` filter on a substring of the slug.
 - `--one-per-diagnostic` runs one execution of each diagnostic.
@@ -45,7 +39,7 @@ Narrow it while learning what a deployment does:
 Counts by provider and status:
 
 ```bash
-reforch ref executions stats
+ref-orch ref executions stats
 ```
 
 The pods, and the autoscaler if KEDA is on:
@@ -78,8 +72,8 @@ The worker is not consuming.
 ## Read a failure
 
 ```bash
-reforch ref executions list-groups --not-successful
-reforch ref executions inspect <execution id>
+ref-orch ref executions list-groups --not-successful
+ref-orch ref executions inspect <execution id>
 ```
 
 `inspect` prints the datasets, the outputs and the tail of the execution log.
@@ -103,8 +97,8 @@ Confirm nothing is holding it, in Flower or with the broker state script.
 Then close the record and re-queue:
 
 ```bash
-reforch ref executions fail-running --older-than 12
-reforch ref solve --rerun-failed --timeout 0
+ref-orch ref executions fail-running --older-than 12
+ref-orch ref solve --rerun-failed --timeout 0
 ```
 
 `--older-than` is in hours.
@@ -113,7 +107,7 @@ Without it every running execution is failed, which is right only when no worker
 
 ## A worker that stops consuming
 
-A Celery worker can wedge: it stays Running and Ready, but the queue backs up and it takes nothing.
+If a Celery works is wedged and stays Running and Ready, but the queue backs up and it takes nothing.
 Flower shows it online with nothing active.
 Restart it:
 
@@ -121,8 +115,7 @@ Restart it:
 kubectl -n $NS rollout restart deploy/$RELEASE-climate-ref-aft-esmvaltool
 ```
 
-The Deployment uses `Recreate`, and the pod gets its provider's `terminationGracePeriodSeconds`
-to finish the task it holds.
+The Deployment uses `Recreate`, and the pod gets its provider's `terminationGracePeriodSeconds` to finish the task it holds.
 A task cut off anyway is redelivered, because the workers acknowledge late.
 
 `defaults.livenessProbe.enabled: true` has the kubelet do this itself.
@@ -140,8 +133,8 @@ Nothing in the three providers bounds its own memory, so the pod limit is the on
 The REF records what each execution used, so size from measurement rather than guesswork:
 
 ```bash
-reforch ref executions resources --by provider
-reforch ref executions resources --provider ilamb
+ref-orch ref executions resources --by provider
+ref-orch ref executions resources --provider ilamb
 ```
 
 Raise the limit for that provider in the values file and `helm upgrade`.
@@ -191,10 +184,13 @@ Upgrade between solves where possible, or accept that in-flight executions re-ru
 Upgrade the workers before anything that submits tasks.
 An old worker cannot decode a message from a newer client.
 
+If the upgrade causes some jobs to be dropped, they will be marked as failed after a timeout.
+A future solve will attempt to run those jobs.
+
 ## Report a problem
 
 ```bash
-reforch ref doctor --format markdown
+ref-orch ref doctor --format markdown
 ```
 
 That prints the findings and a description of the deployment: versions, configuration,

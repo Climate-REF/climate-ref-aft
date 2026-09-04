@@ -119,22 +119,24 @@ You must wire up these volumes in your `values.yaml`, otherwise pods will crash 
 | `/ref` | API + all workers + migrate Job | `REF_CONFIGURATION` and `REF_SOFTWARE_ROOT=/ref/software`. Holds the config, the conda environments, scratch and results.  | Persistent volume (PVC or shared host mount). |
 | `/tmp` | API + all workers + migrate Job | `HOME=/tmp`. Diagnostic libraries (intake-esgf, ilamb3) create config directories on import, and the root FS is read-only.  | `emptyDir: {}` is sufficient.                 |
 
-#### Who writes what
+#### Volumes
 
 `/ref` is one volume, but the components need very different access to it.
 Granting every pod RW on the whole tree works,
 but narrowing access means a buggy or compromised diagnostic cannot clobber another provider's conda environment.
+The list below assumes `$REF_CONFIGURATION=/ref` and not other paths are modified via the
+[configuration](https://climate-ref.readthedocs.io/en/latest/configuration/#paths),
+and is consitent across all pods.
 
-| Subpath         | API | Provider workers | Orchestrator | Migrate Job |
-| --------------- | --- | ---------------- | ------------ | ----------- |
-| `/ref` (config) | RO  | RO               | RO           | RO          |
-| `/ref/software` | RO  | RO               | RW           | —           |
-| `/ref/scratch`  | —   | RW               | RW           | —           |
-| `/ref/cache`    | —   | RO               | RW           | —           |
-| `/ref/cache/mamba` | — | RW               | RW           | —           |
-| `/ref/results`  | RO  | —                | RW           | —           |
-| `/ref/db`       | RW  | RW               | RW           | RW          |
-| `/ref/log`      | —   | RW               | RW           | RW          |
+| Subpath            | API | Provider workers | Orchestrator | Migrate Job |
+| ------------------ | --- | ---------------- | ------------ | ----------- |
+| `/ref/software`    | RO  | RO               | RW           | —           |
+| `/ref/scratch`     | —   | RW               | RW           | —           |
+| `/ref/cache`       | —   | RO               | RW           | —           |
+| `/ref/cache/mamba` | —   | RW               | RW           | —           |
+| `/ref/results`     | RO  | —                | RW           | —           |
+| `/ref/db`          | RW  | RW               | RW           | RW          |
+| `/ref/log`         | —   | RW               | RW           | RW          |
 
 The split follows from how the work is dispatched:
 
