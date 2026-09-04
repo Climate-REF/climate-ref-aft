@@ -1,0 +1,112 @@
+# A small deployment: one worker per provider, one shared volume, SQLite.
+# Enough to bootstrap, ingest and run a handful of diagnostics on a single node.
+# The chart defaults size each worker for the largest AFT diagnostic, which this does not attempt.
+#
+# Create the volume first. It must be writable by uid 1000:
+#   kubectl -n <namespace> apply -f - <<EOF
+#   apiVersion: v1
+#   kind: PersistentVolumeClaim
+#   metadata:
+#     name: ref-data
+#   spec:
+#     accessModes: [ReadWriteMany]
+#     resources:
+#       requests:
+#         storage: 200Gi
+#   EOF
+#
+# ReadWriteOnce works when every pod lands on the same node.
+
+api:
+  env:
+    # ilamb3 and intake-esgf write config under HOME at import time.
+    HOME: /tmp
+  volumes: &refVolumes
+  - name: ref
+    persistentVolumeClaim:
+      claimName: ref-data
+  - name: tmp
+    emptyDir: {}
+  volumeMounts:
+  - name: ref
+    mountPath: /ref
+    readOnly: true
+  - name: ref
+    mountPath: /ref/db
+    subPath: db
+  - name: tmp
+    mountPath: /tmp
+
+defaults:
+  resources: &workerResources
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits:
+      cpu: 2
+      memory: 8Gi
+  volumes: *refVolumes
+  # Workers read the config, the conda environments and the cache, and write scratch, the log and the SQLite db.
+  volumeMounts:
+  - name: ref
+    mountPath: /ref
+    readOnly: true
+  - name: ref
+    mountPath: /ref/scratch
+    subPath: scratch
+  - name: ref
+    mountPath: /ref/log
+    subPath: log
+  - name: ref
+    mountPath: /ref/db
+    subPath: db
+  - name: tmp
+    mountPath: /tmp
+
+# The orchestrator builds the conda environments and copies results out of scratch,
+# so it is the one worker with the whole tree writable.
+orchestrator:
+  resources: *workerResources
+  volumes: *refVolumes
+  volumeMounts:
+  - name: ref
+    mountPath: /ref
+  - name: tmp
+    mountPath: /tmp
+
+providers:
+  esmvaltool:
+    resources:
+      requests:
+        cpu: 1
+        memory: 4Gi
+      limits:
+        cpu: 4
+        memory: 12Gi
+    # The shipped Dask config assumes an 8Gi pod.
+    config:
+      max_parallel_tasks: 1
+      dask:
+        profiles:
+          local_distributed:
+            cluster:
+              n_workers: 1
+              memory_limit: 4GiB
+  pmp:
+    resources: *workerResources
+  ilamb:
+    resources: *workerResources
+
+dragonfly:
+  storage:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
+  extraArgs:
+  - --proactor_threads=1
+  - --maxmemory=512mb

@@ -78,6 +78,7 @@ VALUES_FILES = [
     "helm/ci/minimal-values.yaml",
     "helm/ci/gh-actions-values.yaml",
     "helm/ci/local-values.yaml",
+    "helm/examples/small-values.yaml",
 ]
 
 
@@ -784,6 +785,20 @@ def test_orchestrator_and_migrate_job_inherit_the_default_ref_mount(values):
     docs = render(values=values)
     assert "/ref" in _mount_paths(find(docs, "Deployment", "-orchestrator"))
     assert "/ref" in _mount_paths(find(docs, "Job", "-migrate"))
+
+
+def test_small_example_gives_workers_a_read_only_cache():
+    # The orchestrator writes the cache during providers setup, and the workers only read it.
+    docs = render(values="helm/examples/small-values.yaml")
+    for component in ("esmvaltool", "pmp", "ilamb"):
+        mounts = {
+            m["mountPath"]: m
+            for m in find(docs, "Deployment", f"-{component}")["spec"]["template"]["spec"]["containers"][0][
+                "volumeMounts"
+            ]
+        }
+        assert mounts["/ref"].get("readOnly") is True
+        assert not any(path.startswith("/ref/cache") for path in mounts)
 
 
 def _scaled_components(docs: list[dict]) -> set[str]:

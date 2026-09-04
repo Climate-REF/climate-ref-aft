@@ -124,12 +124,15 @@ You must wire up these volumes in your `values.yaml`, otherwise pods will crash 
 `/ref` is one volume, but the components need very different access to it.
 Granting every pod RW on the whole tree works,
 but narrowing access means a buggy or compromised diagnostic cannot clobber another provider's conda environment.
+The table below assumes `REF_CONFIGURATION=/ref` on every pod,
+with no path overridden through the
+[configuration](https://climate-ref.readthedocs.io/en/latest/configuration/#paths).
 
 | Subpath         | API | Provider workers | Orchestrator | Migrate Job |
 | --------------- | --- | ---------------- | ------------ | ----------- |
-| `/ref` (config) | RO  | RO               | RO           | RO          |
 | `/ref/software` | RO  | RO               | RW           | —           |
 | `/ref/scratch`  | —   | RW               | RW           | —           |
+| `/ref/cache`    | —   | RO               | RW           | —           |
 | `/ref/results`  | RO  | —                | RW           | —           |
 | `/ref/db`       | RW  | RW               | RW           | RW          |
 | `/ref/log`      | —   | RW               | RW           | RW          |
@@ -142,6 +145,10 @@ The split follows from how the work is dispatched:
   That queue carries `handle_result`, which copies each execution from scratch into results.
 - `/ref/scratch` must stay a **shared** volume, not a per-pod `emptyDir`.
   The worker writes the outputs and the orchestrator reads them back out from a different pod, so a per-pod scratch loses every result.
+- `/ref/cache` holds the fetched reference data and micromamba's `mamba/proc` directory.
+  `providers setup` on the orchestrator writes both, and the workers only read them.
+  A worker runs micromamba without file locks (climate-ref 0.18.1 and later),
+  but it still needs `mamba/proc` to exist, so run `providers setup` before the first solve.
 - `/ref/log` is written by every Celery worker, not just the orchestrator.
   A worker opens a log file there as it starts, so a read-only `/ref/log` stops the worker before it consumes anything.
 - `/ref/db` only matters with the default SQLite database.
@@ -149,52 +156,9 @@ The split follows from how the work is dispatched:
 
 #### Minimal working example
 
-```yaml
-api:
-  volumes: &refVolumes
-  - name: ref
-    persistentVolumeClaim:
-      claimName: ref-data
-  - name: tmp
-    emptyDir: {}
-  volumeMounts:
-  - name: ref
-    mountPath: /ref
-    readOnly: true            # config, conda environments and results are read-only
-  - name: ref
-    mountPath: /ref/db        # drop this once REF_DATABASE_URL points at Postgres
-    subPath: db
-  - name: tmp
-    mountPath: /tmp
-
-# `defaults` covers the diagnostic workers.
-defaults:
-  volumes: *refVolumes
-  volumeMounts:
-  - name: ref
-    mountPath: /ref
-    readOnly: true            # config and conda environments are read-only
-  - name: ref
-    mountPath: /ref/scratch   # shared with the orchestrator, which copies results out
-    subPath: scratch
-  - name: ref
-    mountPath: /ref/log       # every worker opens a log file here as it starts
-    subPath: log
-  - name: ref
-    mountPath: /ref/db        # drop this once REF_DATABASE_URL points at Postgres
-    subPath: db
-  - name: tmp
-    mountPath: /tmp
-
-# The orchestrator writes the conda environments and the results, so it gets the whole tree.
-orchestrator:
-  volumes: *refVolumes
-  volumeMounts:
-  - name: ref
-    mountPath: /ref
-  - name: tmp
-    mountPath: /tmp
-```
+[`helm/examples/small-values.yaml`](examples/small-values.yaml) wires one claim into every pod with the split above.
+It is the values file the operator runbooks are rehearsed against,
+so start from it rather than from a hand-written block here.
 
 The migrate Job reuses the orchestrator's volumes, because migrations write the database.
 
@@ -233,7 +197,7 @@ The `api` section configures the ref-app (FastAPI + React frontend).
 | `api.enabled`           | Enable the API deployment | `true`                                     |
 | `api.replicaCount`      | Number of API replicas    | `1`                                        |
 | `api.image.repository`  | API image repository      | `ghcr.io/climate-ref/climate-ref-frontend` |
-| `api.image.tag`         | API image tag             | `v0.4.2`                                   |
+| `api.image.tag`         | API image tag             | `v0.7.1`                                   |
 | `api.image.pullPolicy`  | Image pull policy         | `IfNotPresent`                             |
 | `api.service.type`      | Service type              | `ClusterIP`                                |
 | `api.service.port`      | Service port              | `80`                                       |
@@ -347,7 +311,7 @@ and carries the same `PriorityClass` prerequisite as the API.
 | `defaults.replicaCount`                  | Number of worker replicas                                  | `1`                               |
 | `defaults.concurrency`                   | Celery child processes per pod                             | `1`                               |
 | `defaults.image.repository`              | Worker image repository                                    | `ghcr.io/climate-ref/climate-ref` |
-| `defaults.image.tag`                     | Worker image tag                                           | `v0.17.2`                         |
+| `defaults.image.tag`                     | Worker image tag                                           | `v0.18.1`                         |
 | `defaults.image.pullPolicy`              | Image pull policy                                          | `IfNotPresent`                    |
 | `defaults.resources`                     | Resource requests/limits                                   | 4 CPU / 16Gi, limits 6 CPU / 32Gi |
 | `defaults.strategy`                      | Deployment update strategy                                 | `type: Recreate`                  |
