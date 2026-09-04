@@ -130,7 +130,8 @@ but narrowing access means a buggy or compromised diagnostic cannot clobber anot
 | `/ref` (config) | RO  | RO               | RO           | RO          |
 | `/ref/software` | RO  | RO               | RW           | —           |
 | `/ref/scratch`  | —   | RW               | RW           | —           |
-| `/ref/cache`    | —   | RW               | RW           | —           |
+| `/ref/cache`    | —   | RO               | RW           | —           |
+| `/ref/cache/mamba` | — | RW               | RW           | —           |
 | `/ref/results`  | RO  | —                | RW           | —           |
 | `/ref/db`       | RW  | RW               | RW           | RW          |
 | `/ref/log`      | —   | RW               | RW           | RW          |
@@ -143,9 +144,9 @@ The split follows from how the work is dispatched:
   That queue carries `handle_result`, which copies each execution from scratch into results.
 - `/ref/scratch` must stay a **shared** volume, not a per-pod `emptyDir`.
   The worker writes the outputs and the orchestrator reads them back out from a different pod, so a per-pod scratch loses every result.
-- `/ref/cache` holds the fetched reference data and the micromamba root.
-  micromamba takes a lock under it on every `run`, so a worker with a read-only cache fails
-  every execution before the diagnostic starts.
+- `/ref/cache` holds the fetched reference data, which the workers only read.
+  The image sets `XDG_CACHE_HOME` to it, and micromamba takes a lock under `mamba/` there on every `run`,
+  so that one directory must be writable or every execution fails before the diagnostic starts.
 - `/ref/log` is written by every Celery worker, not just the orchestrator.
   A worker opens a log file there as it starts, so a read-only `/ref/log` stops the worker before it consumes anything.
 - `/ref/db` only matters with the default SQLite database.
@@ -182,8 +183,8 @@ defaults:
     mountPath: /ref/scratch   # shared with the orchestrator, which copies results out
     subPath: scratch
   - name: ref
-    mountPath: /ref/cache     # micromamba locks under here on every run
-    subPath: cache
+    mountPath: /ref/cache/mamba   # micromamba locks under here on every run
+    subPath: cache/mamba
   - name: ref
     mountPath: /ref/log       # every worker opens a log file here as it starts
     subPath: log
