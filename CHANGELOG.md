@@ -7,6 +7,45 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.7.0 (2026-09-04)
+
+### Breaking Changes
+
+- Removes the untested Ingress templates, so HTTPRoute is the single north-south path.
+  An enabled `api.httpRoute` or `flower.httpRoute` now requires `parentRefs`,
+  because a route without one attaches to no Gateway.
+  Removes the `flower.autoscaling` block, which gated the replica count with no HPA template behind it.
+  Moves `helm/local-test-values.yaml` to `helm/ci/local-values.yaml`,
+  so packaged charts stop shipping local test config. ([#58](https://github.com/Climate-REF/climate-ref-aft/pulls/58))
+
+### Improvements
+
+- Gives workers a termination grace period covering each provider's task time limit
+  and a Recreate update strategy, so rollouts stop discarding running diagnostics.
+  Hardens every pod to the restricted Pod Security Standard. ([#58](https://github.com/Climate-REF/climate-ref-aft/pulls/58))
+- Updates the climate-ref components to v0.18.1.
+  This ingests obs4REF data under its own `obs4ref` source type,
+  and runs micromamba without file locks inside the workers, so their `/ref/cache` can stay read-only.
+  Updates the ref-app image to v0.7.1. ([#60](https://github.com/Climate-REF/climate-ref-aft/pulls/60))
+
+### Bug Fixes
+
+- Fixes the Helm chart paths that rendered broken output:
+
+  - The provider HPA scales on the metrics named in values instead of a Service the chart never creates.
+  - The db-migrate hook carries `imagePullSecrets`, resources and a deadline, so it cannot block installs indefinitely.
+  - Flower's container port stays on 5555 rather than tracking the Service port.
+  - The ServiceMonitor selector no longer breaks on chart version bumps.
+  - A `celeryRoutes` change now restarts the API and workers.
+
+  ([#58](https://github.com/Climate-REF/climate-ref-aft/pulls/58))
+
+### Improved Documentation
+
+- Adds operator runbooks for bootstrapping a deployment and for running and triaging a solve,
+  and a small single-node example values file they are written against. ([#60](https://github.com/Climate-REF/climate-ref-aft/pulls/60))
+
+
 ## climate-ref-aft 0.6.4 (2026-08-28)
 
 ### Features
