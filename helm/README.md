@@ -156,56 +156,9 @@ The split follows from how the work is dispatched:
 
 #### Minimal working example
 
-```yaml
-api:
-  volumes: &refVolumes
-  - name: ref
-    persistentVolumeClaim:
-      claimName: ref-data
-  - name: tmp
-    emptyDir: {}
-  volumeMounts:
-  - name: ref
-    mountPath: /ref
-    readOnly: true            # config, conda environments and results are read-only
-  - name: ref
-    mountPath: /ref/db        # drop this once REF_DATABASE_URL points at Postgres
-    subPath: db
-  - name: tmp
-    mountPath: /tmp
-
-# `defaults` covers the diagnostic workers.
-defaults:
-  volumes: *refVolumes
-  volumeMounts:
-  - name: ref
-    mountPath: /ref
-    readOnly: true            # config and conda environments are read-only
-  - name: ref
-    mountPath: /ref/scratch   # shared with the orchestrator, which copies results out
-    subPath: scratch
-  - name: ref
-    mountPath: /ref/cache/mamba   # micromamba locks under here on every run
-    subPath: cache/mamba
-  - name: ref
-    mountPath: /ref/log       # every worker opens a log file here as it starts
-    subPath: log
-  - name: ref
-    mountPath: /ref/db        # drop this once REF_DATABASE_URL points at Postgres
-    subPath: db
-  - name: tmp
-    mountPath: /tmp
-
-# The orchestrator writes the conda environments and the results, so it gets the whole tree.
-orchestrator:
-  volumes: *refVolumes
-  volumeMounts:
-  - name: ref
-    mountPath: /ref
-  - name: tmp
-    mountPath: /tmp
-```
-
+[`helm/examples/small-values.yaml`](examples/small-values.yaml) wires one claim into every pod with the split above.
+It is the values file the operator runbooks are rehearsed against,
+so start from it rather than from a hand-written block here.
 The migrate Job reuses the orchestrator's volumes, because migrations write the database.
 
 For ephemeral test deployments (no persistence across upgrades), `/ref` can also be an `emptyDir`, see [`helm/ci/minimal-values.yaml`](ci/minimal-values.yaml).

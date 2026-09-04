@@ -78,6 +78,7 @@ VALUES_FILES = [
     "helm/ci/minimal-values.yaml",
     "helm/ci/gh-actions-values.yaml",
     "helm/ci/local-values.yaml",
+    "helm/examples/small-values.yaml",
 ]
 
 
@@ -784,6 +785,21 @@ def test_orchestrator_and_migrate_job_inherit_the_default_ref_mount(values):
     docs = render(values=values)
     assert "/ref" in _mount_paths(find(docs, "Deployment", "-orchestrator"))
     assert "/ref" in _mount_paths(find(docs, "Job", "-migrate"))
+
+
+def test_small_example_gives_workers_only_the_mamba_lock_directory():
+    # micromamba locks under $XDG_CACHE_HOME/mamba on every run, and the rest of the cache stays read-only.
+    docs = render(values="helm/examples/small-values.yaml")
+    for component in ("esmvaltool", "pmp", "ilamb"):
+        mounts = {
+            m["mountPath"]: m
+            for m in find(docs, "Deployment", f"-{component}")["spec"]["template"]["spec"]["containers"][0][
+                "volumeMounts"
+            ]
+        }
+        assert mounts["/ref"].get("readOnly") is True
+        assert "/ref/cache" not in mounts
+        assert mounts["/ref/cache/mamba"].get("readOnly") is not True
 
 
 def _scaled_components(docs: list[dict]) -> set[str]:
