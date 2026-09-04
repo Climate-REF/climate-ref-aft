@@ -46,8 +46,7 @@ defaults:
       cpu: 2
       memory: 8Gi
   volumes: *refVolumes
-  # Workers read the config and conda environments, and write scratch, the log and the SQLite db.
-  # micromamba locks under $XDG_CACHE_HOME/mamba on every run, so that one directory is writable too.
+  # Workers read the config, the conda environments and the cache, and write scratch, the log and the SQLite db.
   volumeMounts:
   - name: ref
     mountPath: /ref
@@ -55,9 +54,6 @@ defaults:
   - name: ref
     mountPath: /ref/scratch
     subPath: scratch
-  - name: ref
-    mountPath: /ref/cache/mamba
-    subPath: cache/mamba
   - name: ref
     mountPath: /ref/log
     subPath: log

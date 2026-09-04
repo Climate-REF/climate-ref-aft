@@ -133,7 +133,6 @@ and is consitent across all pods.
 | `/ref/software`    | RO  | RO               | RW           | —           |
 | `/ref/scratch`     | —   | RW               | RW           | —           |
 | `/ref/cache`       | —   | RO               | RW           | —           |
-| `/ref/cache/mamba` | —   | RW               | RW           | —           |
 | `/ref/results`     | RO  | —                | RW           | —           |
 | `/ref/db`          | RW  | RW               | RW           | RW          |
 | `/ref/log`         | —   | RW               | RW           | RW          |
@@ -146,9 +145,10 @@ The split follows from how the work is dispatched:
   That queue carries `handle_result`, which copies each execution from scratch into results.
 - `/ref/scratch` must stay a **shared** volume, not a per-pod `emptyDir`.
   The worker writes the outputs and the orchestrator reads them back out from a different pod, so a per-pod scratch loses every result.
-- `/ref/cache` holds the fetched reference data, which the workers only read.
-  The image sets `XDG_CACHE_HOME` to it, and micromamba takes a lock under `mamba/` there on every `run`,
-  so that one directory must be writable or every execution fails before the diagnostic starts.
+- `/ref/cache` holds the fetched reference data and micromamba's `mamba/proc` directory.
+  `providers setup` on the orchestrator writes both, and the workers only read them.
+  A worker runs micromamba without file locks (climate-ref 0.18.1 and later),
+  but it still needs `mamba/proc` to exist, so run `providers setup` before the first solve.
 - `/ref/log` is written by every Celery worker, not just the orchestrator.
   A worker opens a log file there as it starts, so a read-only `/ref/log` stops the worker before it consumes anything.
 - `/ref/db` only matters with the default SQLite database.
@@ -310,7 +310,7 @@ and carries the same `PriorityClass` prerequisite as the API.
 | `defaults.replicaCount`                  | Number of worker replicas                                  | `1`                               |
 | `defaults.concurrency`                   | Celery child processes per pod                             | `1`                               |
 | `defaults.image.repository`              | Worker image repository                                    | `ghcr.io/climate-ref/climate-ref` |
-| `defaults.image.tag`                     | Worker image tag                                           | `v0.17.2`                         |
+| `defaults.image.tag`                     | Worker image tag                                           | `v0.18.1`                         |
 | `defaults.image.pullPolicy`              | Image pull policy                                          | `IfNotPresent`                    |
 | `defaults.resources`                     | Resource requests/limits                                   | 4 CPU / 16Gi, limits 6 CPU / 32Gi |
 | `defaults.strategy`                      | Deployment update strategy                                 | `type: Recreate`                  |

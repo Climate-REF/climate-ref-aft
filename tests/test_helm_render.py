@@ -787,8 +787,8 @@ def test_orchestrator_and_migrate_job_inherit_the_default_ref_mount(values):
     assert "/ref" in _mount_paths(find(docs, "Job", "-migrate"))
 
 
-def test_small_example_gives_workers_only_the_mamba_lock_directory():
-    # micromamba locks under $XDG_CACHE_HOME/mamba on every run, and the rest of the cache stays read-only.
+def test_small_example_gives_workers_a_read_only_cache():
+    # The orchestrator writes the cache during providers setup, and the workers only read it.
     docs = render(values="helm/examples/small-values.yaml")
     for component in ("esmvaltool", "pmp", "ilamb"):
         mounts = {
@@ -798,8 +798,7 @@ def test_small_example_gives_workers_only_the_mamba_lock_directory():
             ]
         }
         assert mounts["/ref"].get("readOnly") is True
-        assert "/ref/cache" not in mounts
-        assert mounts["/ref/cache/mamba"].get("readOnly") is not True
+        assert not any(path.startswith("/ref/cache") for path in mounts)
 
 
 def _scaled_components(docs: list[dict]) -> set[str]:

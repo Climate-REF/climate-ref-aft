@@ -193,7 +193,7 @@ To exercise the deployment before any archive is mounted, fetch the sample data:
 ```bash
 ref-orch ref datasets fetch-data --registry sample-data --output-directory /ref/data/sample
 ref-orch ref datasets ingest --source-type cmip6 /ref/data/sample/CMIP6
-ref-orch ref datasets ingest --source-type obs4mips /ref/data/sample/obs4REF
+ref-orch ref datasets ingest --source-type obs4ref /ref/data/sample/obs4REF
 ```
 
 The sample data does not contain the datasets required by ilamb.
