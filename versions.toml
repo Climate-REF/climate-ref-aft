@@ -21,7 +21,7 @@ climate-ref-ilamb = "0.18.1"
 [frontend]
 # API + frontend container image (Climate-REF/ref-app).
 # Deployed via helm api.image.tag and docker-compose ref-app.
-climate-ref-frontend = "0.7.1"
+climate-ref-frontend = "0.7.4"
 
 [helm]
 # Chart version tracks the AFT repo version
