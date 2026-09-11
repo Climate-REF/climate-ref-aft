@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## climate-ref-aft 0.7.1 (2026-09-11)
+
+### Improvements
+
+- Update the ref-app deployment image to v0.8.1. ([#63](https://github.com/Climate-REF/climate-ref-aft/pulls/63))
+
+
 ## climate-ref-aft 0.7.0 (2026-09-04)
 
 ### Breaking Changes
