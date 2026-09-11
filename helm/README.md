@@ -197,7 +197,7 @@ The `api` section configures the ref-app (FastAPI + React frontend).
 | `api.enabled`           | Enable the API deployment | `true`                                     |
 | `api.replicaCount`      | Number of API replicas    | `1`                                        |
 | `api.image.repository`  | API image repository      | `ghcr.io/climate-ref/climate-ref-frontend` |
-| `api.image.tag`         | API image tag             | `v0.7.1`                                   |
+| `api.image.tag`         | API image tag             | `v0.8.1`                                   |
 | `api.image.pullPolicy`  | Image pull policy         | `IfNotPresent`                             |
 | `api.service.type`      | Service type              | `ClusterIP`                                |
 | `api.service.port`      | Service port              | `80`                                       |
