@@ -10,7 +10,7 @@ kubeVersion: ">=1.23.0-0"
 version: 0.7.1
 
 # Application version tracks the climate-ref core version
-appVersion: "0.18.3"
+appVersion: "0.19.0"
 
 dependencies:
 - name: dragonfly
