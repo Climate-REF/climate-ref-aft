@@ -72,7 +72,7 @@ jobs:
     - name: Start minikube
       uses: medyagh/setup-minikube@latest
     - name: Set up Helm
-      uses: azure/setup-helm@v5.0.1
+      uses: azure/setup-helm@v5.1.0
     - name: Install Chart (minimal)
       run: |
         helm install test oci://ghcr.io/climate-ref/charts/climate-ref-aft \
@@ -139,7 +139,7 @@ jobs:
         memory: 12g
         mount-path: '${{ github.workspace }}/cache/ref-config:/cache/ref-config'
     - name: Set up Helm
-      uses: azure/setup-helm@v5.0.1
+      uses: azure/setup-helm@v5.1.0
     - name: Install Chart
       run: |
         helm install test oci://ghcr.io/climate-ref/charts/climate-ref-aft \
